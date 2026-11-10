@@ -24,7 +24,14 @@ export type ToolCall = { id: number; name: ToolName; params: Params; result?: st
 
 export type FeedItem =
   | { id: number; kind: "agent" | "user" | "sys"; text: string; live?: boolean }
-  | { id: number; kind: "tool"; callId: number };
+  | { id: number; kind: "tool"; callId: number }
+  | { id: number; kind: "step"; stepId: number };
 
-export type WorkflowNode = "triage" | "transfer" | "schedule" | "end";
+/** The agent's workflow as it is in agents/receptionist/receptionist.json. */
+export type WorkflowNode = { id: string; type: string; label: string; x: number; y: number; edge_order: string[]; tools: string[] };
+export type WorkflowEdge = { id: string; source: string; target: string; gate: string | null; when: string | null; back: string | null };
+export type Workflow = { nodes: WorkflowNode[]; edges: WorkflowEdge[] };
+
+/** One move between nodes. `back` means the edge was followed against its direction. */
+export type Step = { id: number; from: string; to: string; edge: string; back: boolean };
 export type Vars = Record<string, string>;

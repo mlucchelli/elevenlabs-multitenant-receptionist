@@ -166,7 +166,14 @@ syncs from the reference workspace.
 config declares, so a tool added to `tools/` needs three more things to work there: a branch
 in `run_tool` in `demo/server.py`, a `useConversationClientTool` line in `demo/web/src/App.tsx`,
 and a case in `ToolEvent` in `demo/web/src/Call.tsx`. `server.py` sends `display_enabled = "true"`
-because the caller is on a web page; a phone backend sends `"false"`. After changing the front
+because the caller is on a web page; a phone backend sends `"false"`.
+
+The workflow map in the demo depends on two things in the agent config. `conversation.client_events`
+must include `agent_tool_request` and `agent_tool_response`, or the client never hears about a
+move between nodes. And a move is reported as `notify_condition_<N>_met`, N being the 1-based
+position of the edge in the current node's `edge_order`, so reordering `edge_order` changes what
+N means (the demo reads the order from the config, it is not hardcoded). The backward condition of
+an edge is condition 1 of the node it leads back from. After changing the front
 end run `npm run build` in `demo/web` (it type-checks first).
 
 ## Repo structure

@@ -21,7 +21,12 @@ export default function App() {
 
   return (
     <ConversationProvider
-      onConnect={() => dispatch({ type: "node", node: "triage" })}
+      onConnect={() => dispatch({ type: "enter" })}
+      // Workflow moves arrive as tool events: the agent config asks for agent_tool_response in client_events.
+      onAgentToolResponse={event => {
+        const moved = "tool_type" in event && event.tool_type === "workflow" && !event.is_error && /^notify_condition_(\d+)_met$/.exec(event.tool_name);
+        if (moved) dispatch({ type: "condition", index: Number(moved[1]) });
+      }}
       onMessage={({ message, source }) => {
         if (source === "user" && textMode.current) return; // typed messages are shown when they are sent
         dispatch({ type: "say", kind: source === "user" ? "user" : "agent", text: message });
@@ -38,7 +43,7 @@ export default function App() {
         if (handedTo.current) {
           dispatch({ type: "say", kind: "sys", text: `Call handed over to ${handedTo.current}.` });
         } else if (details.reason === "agent") {
-          dispatch({ type: "node", node: "end" });
+          dispatch({ type: "ended" });
           dispatch({ type: "say", kind: "sys", text: "The agent ended the call." });
         } else if (details.reason === "error") {
           dispatch({ type: "say", kind: "sys", text: `Disconnected: ${details.message}` });
@@ -69,7 +74,6 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
   const [textMode, setTextMode] = useState(false);
   const [starting, setStarting] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ id: number; text: string; target: string } | null>(null);
 
   const tenant = tenants.find(t => t.id === tenantId) ?? null;
   const live = status === "connected";
@@ -82,11 +86,12 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
   textModeRef.current = textMode;
 
   useEffect(() => {
+    api.workflow().then(workflow => dispatch({ type: "workflow", workflow })).catch(() => {});
     api.tenants().then(list => {
       setTenants(list);
       setTenantId(list[0]?.id ?? null);
     }).catch(() => setProblem("The demo backend is not reachable. Start demo/server.py."));
-  }, []);
+  }, [dispatch]);
 
   // On a phone the businesses are a carousel: keep the selected one in view.
   useEffect(() => {
@@ -130,11 +135,8 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
       const { result, ok } = await api.tool(business.id, name, params);
       const text = typeof result === "string" ? result : JSON.stringify(result);
       finish(text, ok);
-      if (ok) {
-        setToast({ id: call.id, ...TOAST[name] });
-        if (name === "transfer_call") {
-          handOver(business.transfer_rules.find(r => r.destination === params.destination)?.label ?? params.destination);
-        }
+      if (ok && name === "transfer_call") {
+        handOver(business.transfer_rules.find(r => r.destination === params.destination)?.label ?? params.destination);
       }
       return text;
     } catch (err) {
@@ -149,12 +151,6 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
   useConversationClientTool("check_availability", p => run("check_availability", p as Params));
   useConversationClientTool("book_appointment", p => run("book_appointment", p as Params));
   useConversationClientTool("show_item", p => run("show_item", p as Params));
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 4200);
-    return () => clearTimeout(timer);
-  }, [toast]);
 
   async function start() {
     if (!tenant) return;
@@ -268,35 +264,15 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
             sub={sub}
             feed={state.feed}
             calls={state.calls}
+            steps={state.steps}
+            workflow={state.workflow}
             onStart={start}
             onHangUp={endSession}
             onSend={send}
           />
-          <Workspace tenant={tenant} calls={state.calls} node={state.node} vars={state.vars} varsSent={state.varsSent} />
+          <Workspace tenant={tenant} calls={state.calls} workflow={state.workflow} node={state.node} steps={state.steps} vars={state.vars} varsSent={state.varsSent} />
         </main>
-      )}
-
-      {toast && (
-        <button
-          key={toast.id}
-          type="button"
-          className="toast"
-          onClick={() => {
-            document.getElementById(toast.target)?.scrollIntoView({ behavior: "smooth", block: "center" });
-            setToast(null);
-          }}
-        >
-          {toast.text} <span>View</span>
-        </button>
       )}
     </div>
   );
 }
-
-const TOAST: Record<ToolName, { text: string; target: string }> = {
-  take_message: { text: "New message in the inbox", target: "card-inbox" },
-  check_availability: { text: "Calendar checked", target: "card-calendar" },
-  book_appointment: { text: "Appointment booked", target: "card-calendar" },
-  transfer_call: { text: "Transfer started", target: "card-transfer" },
-  show_item: { text: "Item shown on screen", target: "card-screen" },
-};

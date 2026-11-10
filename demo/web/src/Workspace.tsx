@@ -1,20 +1,45 @@
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 import { day, parse, phone, time } from "./format";
-import type { Tenant, ToolCall, Vars, WorkflowNode } from "./types";
+import { WorkflowMap } from "./WorkflowMap";
+import type { Step, Tenant, ToolCall, Vars, Workflow } from "./types";
 
-type Props = { tenant: Tenant; calls: ToolCall[]; node: WorkflowNode | null; vars: Vars | null; varsSent: boolean };
+type Props = { tenant: Tenant; calls: ToolCall[]; workflow: Workflow | null; node: string | null; steps: Step[]; vars: Vars | null; varsSent: boolean };
 
-/** The business's side of the call: what each tool call left behind. */
-export function Workspace({ tenant, calls, node, vars, varsSent }: Props) {
+type CardId = "screen" | "inbox" | "calendar" | "transfer";
+const CARD_OF: Record<ToolCall["name"], CardId> = {
+  show_item: "screen",
+  take_message: "inbox",
+  check_availability: "calendar",
+  book_appointment: "calendar",
+  transfer_call: "transfer",
+};
+
+/**
+ * The business's side of the call. Nothing is drawn until the agent uses it:
+ * a card appears the first time one of its tools succeeds, in the order used.
+ */
+export function Workspace({ tenant, calls, workflow, node, steps, vars, varsSent }: Props) {
   const done = calls.filter(c => c.ok);
+  const used = [...new Set(done.map(c => CARD_OF[c.name]))];
+  const cards: Record<CardId, (wide: boolean) => ReactNode> = {
+    screen: wide => <ScreenCard key="screen" wide={wide} tenant={tenant} shown={done.filter(c => c.name === "show_item").map(c => c.params.item_id)} />,
+    inbox: wide => <InboxCard key="inbox" wide={wide} messages={done.filter(c => c.name === "take_message")} />,
+    calendar: wide => <CalendarCard key="calendar" wide={wide} tenant={tenant} calls={done} />,
+    transfer: wide => <TransferCard key="transfer" wide={wide} tenant={tenant} transfer={done.findLast(c => c.name === "transfer_call")!} />,
+  };
   return (
     <section className="work" aria-label="What the call did">
-      <ScreenCard tenant={tenant} shown={done.filter(c => c.name === "show_item").map(c => c.params.item_id)} />
-      <InboxCard messages={done.filter(c => c.name === "take_message")} />
-      <CalendarCard tenant={tenant} calls={done} />
-      <TransferCard tenant={tenant} transfer={calls.findLast(c => c.name === "transfer_call" && c.ok !== false)} />
-      <ActivityCard calls={calls} node={node} tenant={tenant} />
+      {workflow && <WorkflowMap workflow={workflow} node={node} steps={steps} vars={vars} />}
+      {/* With an odd number of cards the first one takes the full row, so the grid never has a hole. */}
+      {used.map((id, i) => cards[id](used.length % 2 === 1 && i === 0))}
+      {used.length === 0 && (
+        <div className="waiting">
+          <span><Icon name="bolt" size={18} /></span>
+          <p>Nothing has happened yet. Each thing the agent does shows up here when it does it.</p>
+        </div>
+      )}
+      {calls.length > 0 && <ActivityCard calls={calls} />}
       <VarsCard vars={vars} sent={varsSent} />
     </section>
   );
@@ -22,7 +47,7 @@ export function Workspace({ tenant, calls, node, vars, varsSent }: Props) {
 
 function Card(p: { id: string; icon: IconName; title: string; tool?: string; wide?: boolean; fresh?: number; children: ReactNode }) {
   return (
-    <article className={`card tile${p.wide ? " wide" : ""}`} id={p.id}>
+    <article className={`card tile appear${p.wide ? " wide" : ""}`} id={p.id}>
       <header>
         <span className="tile-icon"><Icon name={p.icon} size={16} /></span>
         <h3>{p.title}</h3>
@@ -36,42 +61,31 @@ function Card(p: { id: string; icon: IconName; title: string; tool?: string; wid
   );
 }
 
-function Locked({ flag, children }: { flag: string; children: ReactNode }) {
-  return (
-    <div className="locked">
-      <Icon name="lock" size={16} />
-      <p>{children}</p>
-      <code>{flag} = "false"</code>
-    </div>
-  );
-}
-
-function ScreenCard({ tenant, shown }: { tenant: Tenant; shown: string[] }) {
+function ScreenCard({ tenant, shown, wide }: { tenant: Tenant; shown: string[]; wide: boolean }) {
   const spot = shown.at(-1);
+  // Newest first; an item the agent showed twice appears once.
+  const items = [...new Set(shown.toReversed())].map(id => tenant.catalog.find(i => i.id === id)).filter(i => i !== undefined);
   return (
-    <Card id="card-screen" icon="screen" title="On the caller's screen" tool="show_item" wide fresh={shown.length}>
+    <Card id="card-screen" icon="screen" title="On the caller's screen" tool="show_item" wide={wide} fresh={shown.length}>
       <div className="catalog">
-        {tenant.catalog.map(item => (
-          <div key={item.id} className={`product${item.id === spot ? " spot" : shown.includes(item.id) ? " seen" : ""}`}>
+        {items.map(item => (
+          <div key={item.id} className={item.id === spot ? "product spot" : "product"}>
             <span className="item-art">{item.emoji}</span>
             <div>
               <strong>{item.name}</strong>
               <p>{item.description}</p>
             </div>
             <b>{item.price}</b>
-            {item.id === spot && <em>The agent is showing this</em>}
           </div>
         ))}
       </div>
-      <p className="hint">Ask about one of these. The agent calls a client tool and the page brings it forward.</p>
     </Card>
   );
 }
 
-function InboxCard({ messages }: { messages: ToolCall[] }) {
+function InboxCard({ messages, wide }: { messages: ToolCall[]; wide: boolean }) {
   return (
-    <Card id="card-inbox" icon="inbox" title="Inbox" tool="take_message" fresh={messages.length}>
-      {messages.length === 0 && <p className="empty">Messages the agent takes land here.</p>}
+    <Card id="card-inbox" icon="inbox" title="Inbox" tool="take_message" wide={wide} fresh={messages.length}>
       {messages.toReversed().map(m => (
         <div key={m.id} className="note">
           <span className="avatar">{m.params.caller_name?.[0] ?? "?"}</span>
@@ -87,14 +101,7 @@ function InboxCard({ messages }: { messages: ToolCall[] }) {
   );
 }
 
-function CalendarCard({ tenant, calls }: { tenant: Tenant; calls: ToolCall[] }) {
-  if (tenant.calendars.length === 0) {
-    return (
-      <Card id="card-calendar" icon="calendar" title="Calendar" tool="book_appointment">
-        <Locked flag="scheduling_enabled">Scheduling is off for this business, so the workflow never opens that stage. The agent offers to take a message.</Locked>
-      </Card>
-    );
-  }
+function CalendarCard({ tenant, calls, wide }: { tenant: Tenant; calls: ToolCall[]; wide: boolean }) {
   const bookings = calls.filter(c => c.name === "book_appointment");
   const check = calls.findLast(c => c.name === "check_availability");
   const date = bookings.at(-1)?.params.date ?? check?.params.preferred_date;
@@ -106,12 +113,12 @@ function CalendarCard({ tenant, calls }: { tenant: Tenant; calls: ToolCall[] }) 
   const rows = [...new Set([...free, ...booked.keys()])].sort();
 
   return (
-    <Card id="card-calendar" icon="calendar" title="Calendar" tool="book_appointment" fresh={bookings.length + (check ? 1 : 0)}>
+    <Card id="card-calendar" icon="calendar" title="Calendar" tool={bookings.length ? "book_appointment" : "check_availability"} wide={wide} fresh={bookings.length + (check ? 1 : 0)}>
       <p className="cal-head">
         <strong>{calendar.name}</strong>
         <span>{date ? day(date) : calendar.description}</span>
       </p>
-      {rows.length === 0 && <p className="empty">{date ? "No openings that day." : "The agent checks this calendar before it offers a time."}</p>}
+      {rows.length === 0 && <p className="empty">No openings that day.</p>}
       <div className="cal-rows">
         {rows.map(start => (
           <div key={start} className={booked.has(start) ? "slot booked" : "slot"}>
@@ -128,19 +135,12 @@ function CalendarCard({ tenant, calls }: { tenant: Tenant; calls: ToolCall[] }) 
   );
 }
 
-function TransferCard({ tenant, transfer }: { tenant: Tenant; transfer?: ToolCall }) {
-  if (tenant.transfer_rules.length === 0) {
-    return (
-      <Card id="card-transfer" icon="route" title="Transfers" tool="transfer_call">
-        <Locked flag="transfer_enabled">Transfers are off for this business. The agent says why it cannot connect the caller and takes a message.</Locked>
-      </Card>
-    );
-  }
+function TransferCard({ tenant, transfer, wide }: { tenant: Tenant; transfer: ToolCall; wide: boolean }) {
   return (
-    <Card id="card-transfer" icon="route" title="Transfers" tool="transfer_call" fresh={transfer ? 1 : 0}>
+    <Card id="card-transfer" icon="route" title="Transfer" tool="transfer_call" wide={wide} fresh={1}>
       <div className="routes">
         {tenant.transfer_rules.map(rule => {
-          const active = transfer?.params.destination === rule.destination;
+          const active = transfer.params.destination === rule.destination;
           return (
             <div key={rule.destination} className={active ? "route active" : "route"}>
               <span className="avatar">{rule.label[0]}</span>
@@ -157,28 +157,9 @@ function TransferCard({ tenant, transfer }: { tenant: Tenant; transfer?: ToolCal
   );
 }
 
-const NODES: { id: WorkflowNode; name: string; gate?: "transfer_rules" | "calendars" }[] = [
-  { id: "triage", name: "Reception & Triage" },
-  { id: "transfer", name: "Call Transfer", gate: "transfer_rules" },
-  { id: "schedule", name: "Schedule Appointment", gate: "calendars" },
-  { id: "end", name: "End" },
-];
-
-function ActivityCard({ calls, node, tenant }: { calls: ToolCall[]; node: WorkflowNode | null; tenant: Tenant }) {
+function ActivityCard({ calls }: { calls: ToolCall[] }) {
   return (
-    <Card id="card-activity" icon="bolt" title="Agent activity">
-      <ol className="flow">
-        {NODES.map(n => {
-          const off = n.gate && tenant[n.gate].length === 0;
-          return (
-            <li key={n.id} className={`${n.id === node ? "active" : ""}${off ? " off" : ""}`} title={off ? "The gate variable is false for this business" : undefined}>
-              {off && <Icon name="lock" size={12} />}
-              {n.name}
-            </li>
-          );
-        })}
-      </ol>
-      {calls.length === 0 && <p className="empty">Every tool call appears here with its arguments and what the backend answered.</p>}
+    <Card id="card-activity" icon="bolt" title="Tool calls" wide>
       <div className="log">
         {calls.toReversed().map(c => (
           <div key={c.id} className={c.ok === false ? "call-row bad" : "call-row"}>
@@ -198,7 +179,6 @@ function ActivityCard({ calls, node, tenant }: { calls: ToolCall[]; node: Workfl
           </div>
         ))}
       </div>
-      <p className="hint">ElevenLabs does not tell the client which workflow node is active, so the highlight follows the tool calls.</p>
     </Card>
   );
 }

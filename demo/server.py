@@ -29,9 +29,52 @@ DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 TENANTS = {t["id"]: t for t in json.loads((HERE / "tenants.json").read_text())}
+REPO = HERE.parent
+AGENT = json.loads((REPO / "agents" / "receptionist" / "receptionist.json").read_text())
 
 # What the tools wrote during this run. A real backend would use a database.
 LOG = []
+
+
+def workflow():
+    """The agent's workflow graph, read from the versioned config so the UI draws what is deployed."""
+    tool_names = {
+        t["id"]: json.loads((REPO / t["config"]).read_text())["name"]
+        for t in json.loads((REPO / "tools.json").read_text())["tools"]
+    }
+    prompt = AGENT["conversation_config"]["agent"]["prompt"]
+
+    def condition(cond):
+        """-> (gate variable or None, the sentence the LLM judges or None)"""
+        if not cond or cond["type"] == "unconditional":
+            return None, None
+        if cond["type"] == "llm":
+            return None, cond["condition"]
+        gate = text = None
+        for child in cond["expression"].get("children", []):
+            if child["type"] == "eq_operator":
+                gate = child["left"]["name"]
+            elif child["type"] == "llm":
+                text = child["prompt"]
+        return gate, text
+
+    nodes = []
+    for node_id, node in AGENT["workflow"]["nodes"].items():
+        own = (node.get("conversation_config", {}).get("agent", {}).get("prompt", {}).get("built_in_tools") or {})
+        tools = [tool_names[i] for i in node.get("additional_tool_ids") or []] + list(own)
+        if node_id == "node_triage":
+            tools = [tool_names[i] for i in prompt["tool_ids"]] + tools
+        nodes.append({
+            "id": node_id, "type": node["type"], "label": node.get("label") or node["type"].capitalize(),
+            "x": node["position"]["x"], "y": node["position"]["y"],
+            "edge_order": node.get("edge_order") or [], "tools": tools,
+        })
+    edges = []
+    for edge_id, edge in AGENT["workflow"]["edges"].items():
+        gate, when = condition(edge.get("forward_condition"))
+        _, back = condition(edge.get("backward_condition"))
+        edges.append({"id": edge_id, "source": edge["source"], "target": edge["target"], "gate": gate, "when": when, "back": back})
+    return {"nodes": nodes, "edges": edges}
 
 
 def clock(hhmm):
@@ -151,6 +194,8 @@ class Handler(SimpleHTTPRequestHandler):
         return json.loads(self.rfile.read(length) or b"{}")
 
     def do_GET(self):
+        if self.path == "/api/workflow":
+            return self.reply(200, workflow())
         if self.path != "/api/tenants":
             return super().do_GET()
         out = []

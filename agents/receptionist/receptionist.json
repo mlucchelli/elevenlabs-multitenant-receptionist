@@ -52,7 +52,9 @@
         "interruption",
         "user_transcript",
         "agent_response",
-        "agent_response_correction"
+        "agent_response_correction",
+        "agent_tool_request",
+        "agent_tool_response"
       ],
       "file_input": {
         "enabled": false,

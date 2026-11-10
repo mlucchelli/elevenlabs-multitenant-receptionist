@@ -1,4 +1,4 @@
-import type { Params, Tenant, ToolName, Vars } from "./types";
+import type { Params, Tenant, ToolName, Vars, Workflow } from "./types";
 
 async function request<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
@@ -9,6 +9,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 
 export const api = {
   tenants: () => request<Tenant[]>("/api/tenants"),
+  workflow: () => request<Workflow>("/api/workflow"),
   preview: (tenant: string) => request<{ dynamic_variables: Vars }>("/api/preview", { tenant }),
   session: (tenant: string) => request<{ signed_url: string; dynamic_variables: Vars }>("/api/session", { tenant }),
   tool: (tenant: string, name: ToolName, params: Params) =>

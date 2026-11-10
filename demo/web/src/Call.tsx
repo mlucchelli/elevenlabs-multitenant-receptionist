@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Icon } from "./Icon";
 import { Orb, type OrbState } from "./Orb";
 import { day, parse, phone, time } from "./format";
-import type { FeedItem, Tenant, ToolCall } from "./types";
+import type { FeedItem, Step, Tenant, ToolCall, Workflow } from "./types";
 
 type Props = {
   tenant: Tenant;
@@ -15,6 +15,8 @@ type Props = {
   sub: string;
   feed: FeedItem[];
   calls: ToolCall[];
+  steps: Step[];
+  workflow: Workflow | null;
   onStart: () => void;
   onHangUp: () => void;
   onSend: (text: string) => void;
@@ -52,7 +54,7 @@ export function CallPanel(p: Props) {
         </div>
       </div>
 
-      <Feed feed={p.feed} calls={p.calls} tenant={p.tenant} />
+      <Feed feed={p.feed} calls={p.calls} steps={p.steps} workflow={p.workflow} tenant={p.tenant} />
 
       <div className="suggest">
         {p.tenant.try_saying.map(line => (
@@ -84,7 +86,7 @@ function Composer({ onSend }: { onSend: (text: string) => void }) {
   );
 }
 
-function Feed({ feed, calls, tenant }: { feed: FeedItem[]; calls: ToolCall[]; tenant: Tenant }) {
+function Feed({ feed, calls, steps, workflow, tenant }: { feed: FeedItem[]; calls: ToolCall[]; steps: Step[]; workflow: Workflow | null; tenant: Tenant }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     box.current?.scrollTo({ top: box.current.scrollHeight, behavior: "smooth" });
@@ -98,6 +100,15 @@ function Feed({ feed, calls, tenant }: { feed: FeedItem[]; calls: ToolCall[]; te
         </p>
       )}
       {feed.map(item => {
+        if (item.kind === "step") {
+          const step = steps.find(s => s.id === item.stepId);
+          const to = workflow?.nodes.find(n => n.id === step?.to);
+          return to ? (
+            <p key={item.id} className="msg step">
+              <Icon name="route" size={13} /> Workflow moved to <b>{to.label}</b>
+            </p>
+          ) : null;
+        }
         if (item.kind !== "tool") return <p key={item.id} className={`msg ${item.kind}`}>{item.text}</p>;
         const call = calls.find(c => c.id === item.callId);
         return call ? <ToolEvent key={item.id} call={call} tenant={tenant} /> : null;

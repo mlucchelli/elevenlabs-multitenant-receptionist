@@ -18,7 +18,9 @@ The same config is deployed to two ElevenLabs workspaces: a normal one and a zer
 
 ## Demo
 
-`demo/` is a web app that calls the agent from the browser, by voice or by text. You pick one of four made-up businesses and talk to its receptionist. The page shows the conversation, every tool call with its arguments and timing, and what each call left behind: the message in the inbox, the booked slot in the calendar, the transfer ringing, the product the caller asked about.
+`demo/` is a web app that calls the agent from the browser, by voice or by text. You pick one of four made-up businesses and talk to its receptionist. The page shows the conversation and every tool call with its arguments and timing. What each call leaves behind appears only when it happens: the message in the inbox, the booked slot in the calendar, the transfer ringing, the product the caller asked about.
+
+The workflow is drawn from the agent config in this repo, with the node positions saved by the ElevenLabs editor, and it follows the call live. ElevenLabs reports each move between nodes to the client as a tool event named `notify_condition_<N>_met`, where N is the position of the edge in the current node's `edge_order`. The page turns that back into "Reception & Triage → Schedule Appointment" and shows the condition that fired. Stages a business has switched off are dashed.
 
 ![The demo during a call](docs/demo-desktop.png)
 
@@ -180,8 +182,9 @@ demo/
 └── web/src/
     ├── App.tsx                  — Session start, client tools, layout
     ├── Call.tsx                 — Orb, conversation, tool calls drawn inline
-    ├── Workspace.tsx            — Inbox, calendar, transfers, catalog, activity log
-    └── state.ts                 — Reducer for the conversation and the tool calls
+    ├── Workspace.tsx            — Inbox, calendar, transfers, catalog, tool call log
+    ├── WorkflowMap.tsx          — The workflow graph, following the call live
+    └── state.ts                 — Reducer: conversation, tool calls, workflow moves
 .github/workflows/
 ├── ci.yml                       — On PR: validate, push to a branch, run the tests
 ├── deploy.yml                   — On merge: deploy each workspace in order
