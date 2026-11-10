@@ -1,32 +1,51 @@
 # ElevenLabs Multi-Tenant Receptionist — Agents as Code
 
-A production-grade pattern for running **one ElevenLabs Conversational AI agent as a shared
-platform serving many businesses**, with the entire agent lifecycle — prompts, tools, tests,
-deploys — managed from a git repository instead of the ElevenLabs UI.
+**One ElevenLabs Conversational AI agent, serving many businesses, with its entire lifecycle
+— prompts, tools, tests, deploys — managed from a git repository instead of the ElevenLabs UI.**
 
-This repo distills the architecture I built and operated for a commercial AI receptionist
-platform (thousands of real phone calls), rebuilt here with generic content and placeholder
-ids so the pattern itself is the artifact.
+This repo distills the architecture I designed and operated for a commercial AI receptionist
+platform (thousands of real phone calls across many tenant businesses), rebuilt here with
+generic content and placeholder ids so the pattern itself is the artifact.
 
-## What this demonstrates
+## Highlights
 
-- **Multi-tenancy without config duplication** — one agent, one prompt; each business gets its
-  own behavior through `dynamic_variables` injected at call time.
-- **Agents as code** — every prompt, tool definition, and simulation test is versioned JSON;
-  nothing is edited in the UI. CI pushes to an ElevenLabs *agent branch* per PR, runs the
-  simulation suite against it, and deploys to each workspace's Main branch on merge.
-- **Multi-workspace deploys with id translation** — the same config ships to a standard
-  workspace and a zero-retention (HIPAA) workspace. Workspace-scoped ids are substituted from
-  a registry at push time; a config overlay enforces the privacy block; features a workspace
-  cannot hold (MCP servers, webhooks) are stripped and their tests skipped *by name and
-  reason, never silently*.
-- **LLM-judged tests treated as a statistics problem** — simulation tests are noisy by
-  construction, so the pipeline distinguishes `failed` from `nonverdict`, re-rolls
-  non-verdicts for free, and fails the build only after a measured strike threshold.
-- **Working around real API/CLI sharp edges** — pushes go through the REST API because the
-  official CLI drops `response_mocks` and mis-serializes some payloads; branch deletion is
-  deliberately left broken because the "obvious fix" deletes the whole agent (verified the
-  hard way).
+| Problem | Solution in this repo |
+|---|---|
+| Hundreds of businesses, one agent | Tenant behavior injected at call time via `dynamic_variables`; capabilities are hard gates per tenant |
+| Prompt changes are risky | Every PR gets its own **ElevenLabs agent branch**; an LLM-judged simulation suite runs against it before merge |
+| LLM-judged tests are flaky | Verdicts split into `passed` / `failed` / `nonverdict`; free re-rolls; a **measured** 4-strike threshold instead of a guessed one |
+| HIPAA customers need zero retention | Same config ships to a second workspace with id translation, a privacy overlay asserted post-deploy, and incompatible features stripped — with their tests skipped loudly, never silently |
+| The official CLI breaks pushes | All writes go through the REST API; the CLI is pull-only (its push bugs are documented below) |
+| Call flow must be explicit, not emergent | A 5-node **workflow** (triage → transfer / scheduling → end) whose edges gate on tenant variables AND model-signaled conditions; each node carries SOP-style procedures and only the tools that stage needs |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    caller(("Caller"))
+    subgraph backend ["Session backend (not in this repo)"]
+        resolve["Resolve called number → tenant"]
+        mint["Mint session:<br/>dynamic_variables (tenant behavior)<br/>+ conversation_config_override<br/>(llm, tts model, stability)"]
+        handlers["Client-tool handlers:<br/>transfer_call · take_message<br/>check_availability · book_appointment"]
+    end
+    subgraph el ["ElevenLabs Conversational AI"]
+        agent["Shared multi-tenant agent<br/>(this repo: prompt, workflow, tools, tests)"]
+        kb[("Knowledge base<br/>via MCP server")]
+        wh["Post-call webhook<br/>(transcript)"]
+    end
+    git[("This repo<br/>agents/ tools/ tests/")]
+    ci["GitHub Actions<br/>per-PR agent branch + simulation suite<br/>merge → Main of each workspace"]
+
+    caller -->|"PSTN / SIP"| resolve --> mint -->|"startSession"| agent
+    agent <-->|"client tool calls"| handlers
+    agent --- kb
+    agent -->|"call ended"| wh --> backend
+    git --> ci -->|"REST API"| el
+```
+
+The backend and telephony layer are intentionally out of scope: every integration point they
+need (which variables to send, which client tools to implement, which overrides are enabled)
+is defined by the JSON in this repo.
 
 ## How multi-tenancy works
 
@@ -51,15 +70,23 @@ called number to a business and opens the conversation with that tenant's variab
 ```
 
 The prompt (`agents/receptionist/receptionist.json`) treats each capability as a **hard
-gate**: a disabled capability does not exist on that call. The simulation tests exercise the
-same mechanism — each test file injects a different fictional tenant (a dental clinic, a yoga
+gate**: a disabled capability does not exist on that call. On top of the shared base prompt
+sits a **workflow**: a triage node routes to dedicated transfer and scheduling nodes, each
+carrying numbered, SOP-style procedures in its `additional_prompt` and only the tools that
+stage needs (`additional_tool_ids`). Edges combine a deterministic check on the tenant's
+gate variable (`transfer_enabled == "true"`) with a model-signaled intent condition, so a
+tenant with scheduling disabled can never even enter the booking stage. The simulation
+tests exercise the same mechanism — each test file injects a different fictional tenant (a dental clinic, a yoga
 studio, a law firm, a bakery) and asserts the platform behaves correctly *for that tenant
 type*. A test failure means the shared platform broke for a class of tenant, not that one
 business's config is wrong.
 
-Per-conversation **client overrides** (`tts.model_id`, `agent.prompt.llm`, `tts.stability`,
-`tts.similarity_boost`) are enabled in `platform_settings.overrides`, so the backend can run
-model experiments per call without a redeploy — e.g. an A/B arm on a new LLM. A rule this
+The committed defaults are `claude-haiku-5-5` for the LLM and `eleven_v4_turbo` for TTS
+(Eleven v4 exposes exactly two voice controls — `stability` and `similarity_boost` — no
+speed, style or SSML). Per-conversation **client overrides** (`tts.model_id`,
+`agent.prompt.llm`, `tts.stability`, `tts.similarity_boost`) are enabled in
+`platform_settings.overrides`, so the backend can run model experiments per call without a
+redeploy — e.g. an A/B arm on a new LLM. A rule this
 enables: no workflow node may pin its own `llm` or `tts.model_id`, because a node-level value
 silently beats the override (`ci/assert_node_models.py` enforces it on every PR).
 
@@ -177,5 +204,23 @@ ELEVENLABS_API_KEY=... python3 ci/push_workspace.py \
   --workspace standard --mode ci --branch-name "$(git rev-parse --abbrev-ref HEAD)"
 ```
 
-`ci/README.md` documents the pipeline internals, the REST endpoints used, and the
-operational lessons (including why branch cleanup is intentionally left broken).
+## Operational lessons baked into the code
+
+- **Branch deletion is left broken on purpose.** The obvious "fix" for the 405 on
+  `DELETE .../branches/{id}` — scoping the agent delete with `?branch_id=` the way `PATCH`
+  scopes — ignores the query param and deletes the whole agent. `cleanup.yml`'s comments
+  tell the story.
+- **Tests are pushed before the suite runs**, so a PR that changes a success condition is
+  evaluated against the condition it just changed, not the previous revision.
+- **A workspace that can't hold a feature never hears of it.** Stripping the MCP server
+  alone made the agent substitute `end_call` for the search tool and hang up on callers;
+  the omission therefore strips the whole prompt section that mentions searching.
+- **`current_datetime` is pinned, never read from a wall clock** — otherwise a test passes
+  or fails depending on what weekday CI happens to run.
+
+`ci/README.md` documents the pipeline internals, the REST endpoints used, and the required
+GitHub configuration.
+
+---
+
+MIT — see [LICENSE](LICENSE).
