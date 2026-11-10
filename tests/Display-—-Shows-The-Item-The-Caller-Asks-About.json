@@ -1,0 +1,52 @@
+{
+    "id": "test_vayiw4965pidssbkppynlp1nqge2",
+    "type": "simulation",
+    "from_conversation_metadata": {
+        "conversation_id": "",
+        "agent_id": "agent_b02mlsj27d8tlz0zb5lqdmgmwfey",
+        "original_agent_reply": []
+    },
+    "dynamic_variables": {
+        "first_message": "Sunrise Bakery, hello! What can I do for you?",
+        "business_name": "Sunrise Bakery",
+        "global_context": "Sunrise Bakery takes custom cake orders in person or by leaving a message; the owner, Rosa, returns calls in the afternoon.",
+        "transfer_rules": "",
+        "transfer_enabled": "false",
+        "scheduling_enabled": "false",
+        "scheduling_calendars": "[]",
+        "current_datetime": "Friday, June 26 2026, 9:30 AM",
+        "phone_timezone": "America/Los_Angeles",
+        "caller_number": "+15550109834",
+        "thread_id": "sim-thread-test",
+        "business_hours": "Monday: 7:00 AM to 3:00 PM; Tuesday: 7:00 AM to 3:00 PM; Wednesday: 7:00 AM to 3:00 PM; Thursday: 7:00 AM to 3:00 PM; Friday: 7:00 AM to 3:00 PM; Saturday: 8:00 AM to 1:00 PM; Sunday: Closed",
+        "within_business_hours": "true",
+        "display_enabled": "true",
+        "catalog": "[{\"id\": \"cake_birthday\", \"name\": \"Birthday cake, 8 inch\", \"price\": \"$48\", \"description\": \"Vanilla or chocolate sponge, serves 10, 48 hours notice\"}, {\"id\": \"sourdough\", \"name\": \"Sourdough loaf\", \"price\": \"$9\", \"description\": \"Baked every morning\"}, {\"id\": \"croissant_box\", \"name\": \"Croissant box of six\", \"price\": \"$21\", \"description\": \"Butter croissants, order by 2 PM for next-day pickup\"}]"
+    },
+    "chat_history": [
+        {
+            "role": "agent",
+            "message": "Sunrise Bakery, hello! What can I do for you?",
+            "tool_calls": [],
+            "tool_results": [],
+            "time_in_call_secs": 0,
+            "interrupted": false,
+            "reasoning": [],
+            "used_static_kb_document_ids": [],
+            "analysis": null
+        }
+    ],
+    "success_conditions": [
+        "The agent calls the show_item tool with item_id set to cake_birthday. Describing the cake without calling show_item is a failure.",
+        "The agent states the birthday cake's price as forty-eight dollars, taken from the catalog, and does not invent any price or detail that is not in the catalog.",
+        "The agent does not call show_item for items the caller never asked about."
+    ],
+    "simulation_scenario": "You are Maya Brooks, browsing the Sunrise Bakery website and talking to its assistant. Ask how much a birthday cake costs. When the agent answers, say 'Great, that's all I needed, thank you' and end the conversation. Do not ask about any other product.",
+    "simulation_max_turns": 12,
+    "tool_mock_config": {
+        "mocking_strategy": "all",
+        "fallback_strategy": "raise_error",
+        "mocked_tool_ids": []
+    },
+    "name": "Display — Shows The Item The Caller Asks About"
+}

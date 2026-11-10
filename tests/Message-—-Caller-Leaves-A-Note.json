@@ -19,7 +19,9 @@
         "caller_number": "+15550198321",
         "thread_id": "sim-thread-test",
         "business_hours": "Monday: 9:00 AM to 5:00 PM; Tuesday: 9:00 AM to 5:00 PM; Wednesday: 9:00 AM to 5:00 PM; Thursday: 9:00 AM to 5:00 PM; Friday: 9:00 AM to 5:00 PM; Saturday: Closed; Sunday: Closed",
-        "within_business_hours": "true"
+        "within_business_hours": "true",
+        "display_enabled": "false",
+        "catalog": "[]"
     },
     "chat_history": [
         {

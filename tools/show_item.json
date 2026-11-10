@@ -1,0 +1,42 @@
+{
+    "type": "client",
+    "name": "show_item",
+    "description": "Shows one item from the business's catalog on the caller's screen. Only call it when display_enabled is true: on a phone call the caller has no screen and this tool does not exist. Call it when the caller asks about an item in catalog, or when you bring one up yourself, and at most once per item per call. Do not announce it and do not wait for it before speaking: say what the item is and what it costs in one sentence, the screen carries the rest.",
+    "response_timeout_secs": 20,
+    "disable_interruptions": false,
+    "force_pre_tool_speech": false,
+    "pre_tool_speech": "auto",
+    "assignments": [],
+    "tool_call_sound_behavior": "auto",
+    "tool_error_handling_mode": "auto",
+    "parameters": {
+        "type": "object",
+        "required": [
+            "item_id"
+        ],
+        "description": "",
+        "properties": {
+            "item_id": {
+                "type": "string",
+                "description": "The id of the item to show, copied exactly from catalog. Never an id that is not in the list.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            }
+        }
+    },
+    "expects_response": true,
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {
+            "thread_id": ""
+        }
+    },
+    "execution_mode": "immediate",
+    "response_mocks": [
+        {
+            "mock_result": "Shown on the caller's screen."
+        }
+    ]
+}

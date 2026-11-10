@@ -81,6 +81,12 @@
       "hipaa": "tool_jfvrwrku2oi4a22zmi7i3iqlayad"
     },
     {
+      "kind": "tool",
+      "name": "show_item",
+      "standard": "tool_lcm715uekkfgmcl39pqc5n4iev97",
+      "hipaa": "tool_4l59qts3y5cg0d64j1f9787kfsmc"
+    },
+    {
       "kind": "mcp",
       "name": "knowledge_base",
       "standard": "CQB20eWTlSGB1wtysm8Z",
@@ -130,6 +136,12 @@
       "requires": [
         "mcp/knowledge_base"
       ]
+    },
+    {
+      "kind": "test",
+      "name": "Display — Shows The Item The Caller Asks About",
+      "standard": "test_vayiw4965pidssbkppynlp1nqge2",
+      "hipaa": "test_i3s359f9suztu76014404tyn3nc8"
     }
   ],
   "deploy_order": [

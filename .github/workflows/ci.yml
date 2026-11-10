@@ -35,6 +35,12 @@ jobs:
           echo "All JSON files valid."
       - name: Unit tests
         run: python3 ci/tests/test_translate.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Type-check and build the demo
+        working-directory: demo/web
+        run: npm ci && npm run build
 
   test-agent:
     needs: [discover, validate]

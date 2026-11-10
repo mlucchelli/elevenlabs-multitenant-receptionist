@@ -19,6 +19,11 @@
       "type": "client",
       "config": "tools/book_appointment.json",
       "id": "tool_lbm2vhqgwkutc0hx07sg37i7f9pg"
+    },
+    {
+      "type": "client",
+      "config": "tools/show_item.json",
+      "id": "tool_lcm715uekkfgmcl39pqc5n4iev97"
     }
   ]
 }

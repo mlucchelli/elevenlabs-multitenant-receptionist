@@ -36,7 +36,7 @@ One config, `agents/receptionist/receptionist.json`: a shared base prompt plus a
 workflow — `start → Reception & Triage`, which routes to `Call Transfer` and
 `Schedule Appointment` nodes and to an `end` node. Each `override_agent` node carries
 numbered SOP-style **procedures** in its `additional_prompt` and scopes its own tools via
-`additional_tool_ids` (the base prompt holds only `take_message`). `end_call` is declared only on the triage node, so the transfer and scheduling stages cannot
+`additional_tool_ids` (the base prompt holds `take_message` and `show_item`). `end_call` is declared only on the triage node, so the transfer and scheduling stages cannot
 hang up; their only way out is the `backward_condition` on the edge that brought the call in,
 which returns it to triage. Loops are always one edge with a forward and a backward
 condition, never two edges. Forward conditions out of triage are
@@ -59,8 +59,8 @@ Things in it that are load-bearing and easy to break:
   `tts.model_id` and `agent.prompt.llm` via `conversation_config_override`; a node-level
   value applies after the override and silently beats it. `ci/assert_node_models.py`
   enforces this on every PR. The committed `model_id`/`llm` values are defaults only.
-- **Capabilities are hard gates.** `transfer_enabled` / `scheduling_enabled` arrive as
-  strings per tenant; the prompt treats a disabled capability as nonexistent. Keep new
+- **Capabilities are hard gates.** `transfer_enabled` / `scheduling_enabled` /
+  `display_enabled` arrive as strings per tenant; the prompt treats a disabled capability as nonexistent. Keep new
   capabilities on the same pattern: a gate variable, a rules/config variable, and a decline
   path that explains itself in the same reply.
 - **`current_datetime` is pinned by the caller of the session, never read from a wall
@@ -160,6 +160,15 @@ work.
 **Pull commands work fine** (`agents pull`, `tools pull`, `tests pull`) and are how the repo
 syncs from the reference workspace.
 
+## The demo
+
+`demo/` calls the agent from a browser. It implements the same five client tools the agent
+config declares, so a tool added to `tools/` needs three more things to work there: a branch
+in `run_tool` in `demo/server.py`, a `useConversationClientTool` line in `demo/web/src/App.tsx`,
+and a case in `ToolEvent` in `demo/web/src/Call.tsx`. `server.py` sends `display_enabled = "true"`
+because the caller is on a web page; a phone backend sends `"false"`. After changing the front
+end run `npm run build` in `demo/web` (it type-checks first).
+
 ## Repo structure
 
 ```
@@ -176,6 +185,10 @@ ci/
   README.md                      # pipeline internals + REST API reference
   push_workspace.py              # the driver CI and deploy both run, one workspace at a time
   lib/                           # refs.py (where ids live) / translate.py / push.py (REST)
+demo/
+  server.py                      # demo backend: dynamic variables, signed URL, runs the client tools
+  tenants.json                   # the four fictional businesses the demo can call
+  web/                           # React + @elevenlabs/react front end (npm run build → web/dist)
 .github/workflows/
   ci.yml                         # PR: validate → per workspace: push to a PR branch → test → check
   deploy.yml                     # merge: per workspace in deploy_order: push to Main → assert privacy

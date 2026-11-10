@@ -1,0 +1,229 @@
+[
+  {
+    "id": "harbor-dental",
+    "business_name": "Harbor Dental",
+    "kind": "Family dental clinic",
+    "hue": 235,
+    "emoji": "🦷",
+    "first_message": "Hi, you've reached Harbor Dental. How can I help you today?",
+    "global_context": "Harbor Dental is a family dental clinic at 48 Quay Street. Dr. Chen and Dr. Ibarra see patients Monday through Friday. New patients are welcome. A routine cleaning takes 45 minutes.",
+    "timezone": "America/New_York",
+    "hours": {
+      "mon": ["09:00", "17:00"],
+      "tue": ["09:00", "17:00"],
+      "wed": ["09:00", "17:00"],
+      "thu": ["09:00", "17:00"],
+      "fri": ["09:00", "17:00"],
+      "sat": null,
+      "sun": null
+    },
+    "transfer_rules": [
+      {
+        "match": "billing or insurance questions",
+        "destination": "+15550198002",
+        "announce": "Let me put you through to our billing desk.",
+        "label": "Billing desk"
+      }
+    ],
+    "calendars": [
+      {
+        "id": "cal_cleanings",
+        "name": "Cleanings",
+        "description": "Routine cleaning and check-up, 45 minutes",
+        "timezone": "America/New_York"
+      }
+    ],
+    "catalog": [
+      {
+        "id": "cleaning",
+        "name": "Cleaning and check-up",
+        "price": "$120",
+        "description": "45 minutes with a hygienist, includes X-rays once a year",
+        "emoji": "🪥"
+      },
+      {
+        "id": "whitening",
+        "name": "Teeth whitening",
+        "price": "$290",
+        "description": "One in-office session, about an hour",
+        "emoji": "✨"
+      },
+      {
+        "id": "emergency",
+        "name": "Emergency visit",
+        "price": "$180",
+        "description": "Same-day appointment for pain or a broken tooth",
+        "emoji": "🚑"
+      }
+    ],
+    "try_saying": [
+      "How much is a whitening?",
+      "I'd like to book a cleaning for tomorrow.",
+      "I have a question about my insurance claim.",
+      "Tell Dr. Chen the lab delivery is late."
+    ]
+  },
+  {
+    "id": "riverside-yoga",
+    "business_name": "Riverside Yoga",
+    "kind": "Yoga studio",
+    "hue": 165,
+    "emoji": "🧘",
+    "first_message": "Thank you for calling Riverside Yoga! How can I help you?",
+    "global_context": "Riverside Yoga is a yoga studio offering group classes and private sessions. Group classes are drop-in and do not need a booking. Mats are provided.",
+    "timezone": "America/New_York",
+    "hours": {
+      "mon": ["07:00", "21:00"],
+      "tue": ["07:00", "21:00"],
+      "wed": ["07:00", "21:00"],
+      "thu": ["07:00", "21:00"],
+      "fri": ["07:00", "21:00"],
+      "sat": ["08:00", "14:00"],
+      "sun": null
+    },
+    "transfer_rules": [],
+    "calendars": [
+      {
+        "id": "cal_private_sessions",
+        "name": "Private sessions",
+        "description": "One-on-one yoga sessions, 30 minutes",
+        "timezone": "America/New_York"
+      }
+    ],
+    "catalog": [
+      {
+        "id": "drop_in",
+        "name": "Drop-in class",
+        "price": "$22",
+        "description": "Any group class, no booking needed, mats provided",
+        "emoji": "🧘"
+      },
+      {
+        "id": "pass_10",
+        "name": "Ten-class pass",
+        "price": "$180",
+        "description": "Valid for six months, shareable with one friend",
+        "emoji": "🎟️"
+      },
+      {
+        "id": "private",
+        "name": "Private session",
+        "price": "$75",
+        "description": "One-on-one, 30 minutes, by appointment",
+        "emoji": "🌿"
+      }
+    ],
+    "try_saying": [
+      "What does a private session cost?",
+      "Book me a private session tomorrow.",
+      "Do I need to book a group class?",
+      "Can I speak to the owner?"
+    ]
+  },
+  {
+    "id": "lakeside-legal",
+    "business_name": "Lakeside Legal",
+    "kind": "Law firm",
+    "hue": 295,
+    "emoji": "⚖️",
+    "first_message": "Lakeside Legal, good afternoon. How may I direct your call?",
+    "global_context": "Lakeside Legal is a small law firm. Partners: M. Alvarez (family law), J. Okafor (real estate). The firm does not give legal advice over the phone.",
+    "timezone": "America/Chicago",
+    "hours": {
+      "mon": ["08:30", "18:00"],
+      "tue": ["08:30", "18:00"],
+      "wed": ["08:30", "18:00"],
+      "thu": ["08:30", "18:00"],
+      "fri": ["08:30", "17:00"],
+      "sat": null,
+      "sun": null
+    },
+    "transfer_rules": [
+      {
+        "match": "existing clients of M. Alvarez with an open family-law case",
+        "destination": "+15550177001",
+        "announce": "Let me connect you with M. Alvarez's office.",
+        "label": "M. Alvarez · Family law"
+      },
+      {
+        "match": "real estate matters",
+        "destination": "+15550177002",
+        "announce": "I'll put you through to J. Okafor's office.",
+        "label": "J. Okafor · Real estate"
+      }
+    ],
+    "calendars": [],
+    "catalog": [
+      {
+        "id": "consultation",
+        "name": "Initial consultation",
+        "price": "$150",
+        "description": "30 minutes with a partner, credited toward your first invoice",
+        "emoji": "🤝"
+      },
+      {
+        "id": "contract_review",
+        "name": "Contract review",
+        "price": "from $400",
+        "description": "Purchase and lease agreements, returned in three business days",
+        "emoji": "📄"
+      }
+    ],
+    "try_saying": [
+      "I'm buying a house and need help with the contract.",
+      "How much is a first consultation?",
+      "I'd like to schedule a consultation.",
+      "What should I do about my landlord?"
+    ]
+  },
+  {
+    "id": "sunrise-bakery",
+    "business_name": "Sunrise Bakery",
+    "kind": "Bakery",
+    "hue": 40,
+    "emoji": "🥐",
+    "first_message": "Sunrise Bakery, hello! What can I do for you?",
+    "global_context": "Sunrise Bakery takes custom cake orders in person or by leaving a message; the owner, Rosa, returns calls in the afternoon.",
+    "timezone": "America/Los_Angeles",
+    "hours": {
+      "mon": ["07:00", "15:00"],
+      "tue": ["07:00", "15:00"],
+      "wed": ["07:00", "15:00"],
+      "thu": ["07:00", "15:00"],
+      "fri": ["07:00", "15:00"],
+      "sat": ["08:00", "13:00"],
+      "sun": null
+    },
+    "transfer_rules": [],
+    "calendars": [],
+    "catalog": [
+      {
+        "id": "cake_birthday",
+        "name": "Birthday cake, 8 inch",
+        "price": "$48",
+        "description": "Vanilla or chocolate sponge, serves 10, 48 hours notice",
+        "emoji": "🎂"
+      },
+      {
+        "id": "sourdough",
+        "name": "Sourdough loaf",
+        "price": "$9",
+        "description": "Baked every morning",
+        "emoji": "🍞"
+      },
+      {
+        "id": "croissant_box",
+        "name": "Croissant box of six",
+        "price": "$21",
+        "description": "Butter croissants, order by 2 PM for next-day pickup",
+        "emoji": "🥐"
+      }
+    ],
+    "try_saying": [
+      "How much is a birthday cake?",
+      "I want to order a cake for Saturday.",
+      "Can I talk to Rosa?",
+      "Can I book a tasting?"
+    ]
+  }
+]
