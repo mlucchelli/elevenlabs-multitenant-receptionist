@@ -1,0 +1,58 @@
+{
+    "id": "test_1au0oorcvubyl3kabgd20qnlhgz8",
+    "type": "simulation",
+    "from_conversation_metadata": {
+        "conversation_id": "",
+        "agent_id": "agent_b02mlsj27d8tlz0zb5lqdmgmwfey",
+        "original_agent_reply": []
+    },
+    "dynamic_variables": {
+        "first_message": "Hi, you've reached Harbor Dental. How can I help you today?",
+        "business_name": "Harbor Dental",
+        "global_context": "",
+        "transfer_rules": "",
+        "transfer_enabled": "false",
+        "scheduling_enabled": "false",
+        "scheduling_calendars": "[]",
+        "current_datetime": "Tuesday, June 23 2026, 2:00 PM",
+        "phone_timezone": "America/New_York",
+        "caller_number": "+15550198321",
+        "thread_id": "sim-thread-test",
+        "business_hours": "Monday: 9:00 AM to 5:00 PM; Tuesday: 9:00 AM to 5:00 PM; Wednesday: 9:00 AM to 5:00 PM; Thursday: 9:00 AM to 5:00 PM; Friday: 9:00 AM to 5:00 PM; Saturday: Closed; Sunday: Closed",
+        "within_business_hours": "true"
+    },
+    "chat_history": [
+        {
+            "role": "agent",
+            "message": "Hi, you've reached Harbor Dental. How can I help you today?",
+            "tool_calls": [],
+            "tool_results": [],
+            "time_in_call_secs": 0,
+            "interrupted": false,
+            "reasoning": [],
+            "used_static_kb_document_ids": [],
+            "analysis": null
+        }
+    ],
+    "success_conditions": [
+        "Before answering the pricing question, the agent searches the knowledge base (a knowledge/search tool call is visible in the transcript) instead of answering from the prompt alone.",
+        "If the search returns nothing usable, the agent says it does not have that information and offers to take a message — it never invents a price.",
+        "The agent does not end the call merely because it could not answer the question."
+    ],
+    "simulation_scenario": "You are Alex Kim calling Harbor Dental. Ask how much a routine cleaning costs for a new patient without insurance. If the agent cannot find the price, ask them to have someone call you back with it, leave your name, and end the call politely.",
+    "simulation_max_turns": 10,
+    "tool_mock_config": {
+        "mocking_strategy": "all",
+        "fallback_strategy": "raise_error",
+        "mocked_tool_ids": []
+    },
+    "name": "Knowledge — Answers From The Knowledge Base",
+    "tool_mock_overrides": {
+        "tool_1xq3q9t86b3nd981fgt7cp5hf4t1": [
+            {
+                "parameter_conditions": [],
+                "mock_result": "Message saved. A staff member will call back with the pricing information."
+            }
+        ]
+    }
+}

@@ -1,0 +1,139 @@
+{
+  "$comment": [
+    "Workspace registry for multi-workspace deploys.",
+    "This file may name environment variables but must NEVER contain an API key value.",
+    "'standard' is the reference workspace: the one you pull from and the one the versioned JSON belongs to.",
+    "Push to standard is the identity function; push to hipaa substitutes each 'standard' id for its 'hipaa' one.",
+    "'name' is documentation for the reader and is allowed to be non-unique. The lookup key is 'standard'.",
+    "Voices are deliberately absent: adding a Voice Library voice to another workspace preserves its voice_id, so voice ids are identity across workspaces and need no mapping.",
+    "'deploy_to' says which workspaces an agent ships to. An agent absent from a workspace's list is skipped there with no flag and no conditional, and is not linted against it.",
+    "'deploy_order' is the order deploy.yml walks the workspaces, and it is not alphabetical by accident: HIPAA goes first because a failure there leaves production untouched, whereas a standard-first failure would leave HIPAA stale after production had already moved.",
+    "The privacy overlay holds only the three fields the API actually honours, verified by creating a throwaway agent and reading it back: zero_retention_mode, record_voice and retention_days. delete_audio and delete_transcript_and_pii are accepted and silently returned as false, so asserting them would fail every deploy forever. retention_days must be -1, not 0 — the API rejects the agent outright otherwise.",
+    "'requires' on a test names the mappings whose behaviour it exercises, as \"<kind>/<name>\". A test is skipped in any workspace whose 'omitted' list covers that dependency: the behaviour was stripped from the config there on purpose, so the test could only ever be red. It is skipped by name and reason in the log, never silently.",
+    "ALL IDS IN THIS FILE ARE PLACEHOLDERS. Run the pipeline against your own workspaces after creating the agent, tools and tests there (`agents pull` / `tools pull` / `tests pull` write the real ids back)."
+  ],
+  "reference": "standard",
+  "workspaces": {
+    "standard": {
+      "label": "Standard workspace",
+      "api_key_env": "ELEVENLABS_API_KEY",
+      "config_overlay": {}
+    },
+    "hipaa": {
+      "label": "Zero-retention (HIPAA) workspace",
+      "api_key_env": "ELEVENLABS_API_KEY_HIPAA",
+      "config_overlay": {
+        "platform_settings": {
+          "privacy": {
+            "zero_retention_mode": true,
+            "record_voice": false,
+            "retention_days": -1
+          }
+        }
+      },
+      "omitted": [
+        "mcp",
+        "webhook"
+      ]
+    }
+  },
+  "agents": [
+    {
+      "name": "receptionist",
+      "config": "agents/receptionist/receptionist.json",
+      "standard": {
+        "id": "agent_b02mlsj27d8tlz0zb5lqdmgmwfey",
+        "branch_id": "agtbrch_tlpgeovqb2bhoxftgt0rn9y31vfr"
+      },
+      "hipaa": {
+        "id": "agent_9uj6vugsa7ayc1e928tf4ta0gcli",
+        "branch_id": "agtbrch_t7dgheq6acizxq1f0qoti3tn8u9u"
+      },
+      "deploy_to": [
+        "standard",
+        "hipaa"
+      ]
+    }
+  ],
+  "mappings": [
+    {
+      "kind": "tool",
+      "name": "transfer_call",
+      "standard": "tool_elxly5fu8fshn0rlmwcit3l16wen",
+      "hipaa": "tool_b5f3s89bob91lfq7vv6z3k4rttz1"
+    },
+    {
+      "kind": "tool",
+      "name": "take_message",
+      "standard": "tool_1xq3q9t86b3nd981fgt7cp5hf4t1",
+      "hipaa": "tool_yhztouuo6oc8jpvuiy1b76wcqxjb"
+    },
+    {
+      "kind": "tool",
+      "name": "check_availability",
+      "standard": "tool_nrteid9ozqmq4l76qdrd8y7nyxym",
+      "hipaa": "tool_vjubpfvs6bkveynoxrtjwukcitq8"
+    },
+    {
+      "kind": "tool",
+      "name": "book_appointment",
+      "standard": "tool_lbm2vhqgwkutc0hx07sg37i7f9pg",
+      "hipaa": "tool_jfvrwrku2oi4a22zmi7i3iqlayad"
+    },
+    {
+      "kind": "mcp",
+      "name": "knowledge_base",
+      "standard": "CQB20eWTlSGB1wtysm8Z",
+      "hipaa": null
+    },
+    {
+      "kind": "webhook",
+      "name": "post_call",
+      "standard": "cd822640800839f16bcb14deb5916427",
+      "hipaa": null
+    },
+    {
+      "kind": "agent",
+      "name": "receptionist",
+      "standard": "agent_b02mlsj27d8tlz0zb5lqdmgmwfey",
+      "hipaa": "agent_9uj6vugsa7ayc1e928tf4ta0gcli"
+    },
+    {
+      "kind": "test",
+      "name": "Message — Caller Leaves A Note",
+      "standard": "test_w5glnca6hobl81t6ewfz4sa4wdkl",
+      "hipaa": "test_dv1ahl1kdngurgquwf7evayhzr2j"
+    },
+    {
+      "kind": "test",
+      "name": "Scheduling — Books An Appointment With Tools",
+      "standard": "test_cwrbwh518sdobbhwrefbrm59a6k8",
+      "hipaa": "test_dlo873ak9ore0v3ks3cpxqsmq93c"
+    },
+    {
+      "kind": "test",
+      "name": "Transfer — Matched Rule Routes The Call",
+      "standard": "test_yywlnqe4vu07fc1yuy20j4k9pvnf",
+      "hipaa": "test_o8due8e9xklh0xlwqupt7tyss451"
+    },
+    {
+      "kind": "test",
+      "name": "Scheduling Disabled — Booking Request Takes A Message",
+      "standard": "test_s34ps2v26ayd07b4n12hk737zsaj",
+      "hipaa": "test_yguu4nui6qcq4op3m3nf7r4oo03n"
+    },
+    {
+      "kind": "test",
+      "name": "Knowledge — Answers From The Knowledge Base",
+      "standard": "test_1au0oorcvubyl3kabgd20qnlhgz8",
+      "hipaa": "test_5rh11crb3kpuryvmyq8bwzxfti7c",
+      "requires": [
+        "mcp/knowledge_base"
+      ]
+    }
+  ],
+  "deploy_order": [
+    "hipaa",
+    "standard"
+  ]
+}

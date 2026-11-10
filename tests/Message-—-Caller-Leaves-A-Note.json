@@ -1,0 +1,50 @@
+{
+    "id": "test_w5glnca6hobl81t6ewfz4sa4wdkl",
+    "type": "simulation",
+    "from_conversation_metadata": {
+        "conversation_id": "",
+        "agent_id": "agent_b02mlsj27d8tlz0zb5lqdmgmwfey",
+        "original_agent_reply": []
+    },
+    "dynamic_variables": {
+        "first_message": "Hi, you've reached Harbor Dental. How can I help you today?",
+        "business_name": "Harbor Dental",
+        "global_context": "Harbor Dental is a family dental clinic. Dr. Chen sees patients Monday through Friday.",
+        "transfer_rules": "",
+        "transfer_enabled": "false",
+        "scheduling_enabled": "false",
+        "scheduling_calendars": "[]",
+        "current_datetime": "Tuesday, June 23 2026, 2:00 PM",
+        "phone_timezone": "America/New_York",
+        "caller_number": "+15550198321",
+        "thread_id": "sim-thread-test",
+        "business_hours": "Monday: 9:00 AM to 5:00 PM; Tuesday: 9:00 AM to 5:00 PM; Wednesday: 9:00 AM to 5:00 PM; Thursday: 9:00 AM to 5:00 PM; Friday: 9:00 AM to 5:00 PM; Saturday: Closed; Sunday: Closed",
+        "within_business_hours": "true"
+    },
+    "chat_history": [
+        {
+            "role": "agent",
+            "message": "Hi, you've reached Harbor Dental. How can I help you today?",
+            "tool_calls": [],
+            "tool_results": [],
+            "time_in_call_secs": 0,
+            "interrupted": false,
+            "reasoning": [],
+            "used_static_kb_document_ids": [],
+            "analysis": null
+        }
+    ],
+    "success_conditions": [
+        "The agent calls the take_message tool with the caller's message before the conversation ends. Telling the caller the message will be passed on is only acceptable if the take_message tool was actually called.",
+        "The take_message call passes the caller's message as a literal quote of their exact words (the lab delivery arriving Thursday instead of Wednesday), not a paraphrase or third-person re-narration, with the caller's name in the caller_name parameter.",
+        "The agent collects the caller's name before or while taking the message, and does not ask the caller for their phone number, since they never asked to be called back."
+    ],
+    "simulation_scenario": "You are Paul Rivera, a dental lab courier calling Harbor Dental. You want to leave a simple note for Dr. Chen: the crown delivery for patient order 4512 will arrive Thursday instead of Wednesday. Say early on that there is no need for anyone to call you back — you just want the message passed on. Give your name when asked. If the agent asks for your phone number, say it's not necessary. Once the agent confirms the message is taken, say 'Perfect, thank you' and end the conversation.",
+    "simulation_max_turns": 10,
+    "tool_mock_config": {
+        "mocking_strategy": "all",
+        "fallback_strategy": "raise_error",
+        "mocked_tool_ids": []
+    },
+    "name": "Message — Caller Leaves A Note"
+}

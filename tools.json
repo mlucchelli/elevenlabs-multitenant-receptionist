@@ -1,0 +1,24 @@
+{
+  "tools": [
+    {
+      "type": "client",
+      "config": "tools/transfer_call.json",
+      "id": "tool_elxly5fu8fshn0rlmwcit3l16wen"
+    },
+    {
+      "type": "client",
+      "config": "tools/take_message.json",
+      "id": "tool_1xq3q9t86b3nd981fgt7cp5hf4t1"
+    },
+    {
+      "type": "client",
+      "config": "tools/check_availability.json",
+      "id": "tool_nrteid9ozqmq4l76qdrd8y7nyxym"
+    },
+    {
+      "type": "client",
+      "config": "tools/book_appointment.json",
+      "id": "tool_lbm2vhqgwkutc0hx07sg37i7f9pg"
+    }
+  ]
+}

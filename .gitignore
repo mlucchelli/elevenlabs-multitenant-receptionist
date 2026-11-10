@@ -1,0 +1,7 @@
+.claude/settings.local.json
+
+__pycache__/
+*.pyc
+
+# written by ci/push_workspace.py --mode ci, locally and on the runner
+test-results-*.json

@@ -1,0 +1,40 @@
+name: Deploy — Push to production on merge
+
+on:
+  push:
+    branches: [main]
+
+# Serialize deploys — never cancel a running deploy
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Gate: this repo ships with placeholder ids. Set the repository variable
+    # DEPLOY_ENABLED=true once you have provisioned your own workspaces and
+    # replaced the ids in workspaces.json — until then a push to main is a no-op
+    # instead of a guaranteed red run.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # One job walking workspaces in deploy_order, not a matrix: a matrix does
+      # not promise an execution order, and the order is the whole point. HIPAA
+      # goes first because a failure there leaves production untouched, whereas
+      # a standard-first failure would leave HIPAA stale after production moved.
+      # Stopping on the first failure is deliberate for the same reason.
+      - name: Deploy each workspace in order
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_API_KEY_HIPAA: ${{ secrets.ELEVENLABS_API_KEY_HIPAA }}
+        run: |
+          for ws in $(jq -r '.deploy_order[]' workspaces.json); do
+            echo "::group::deploy $ws"
+            python3 ci/push_workspace.py --workspace "$ws" --mode deploy
+            # Read the agents back. A privacy block set once by hand is how a BAA
+            # workspace quietly starts retaining transcripts again.
+            python3 ci/assert_privacy.py --workspace "$ws"
+            echo "::endgroup::"
+          done

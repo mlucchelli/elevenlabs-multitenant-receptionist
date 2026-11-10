@@ -1,0 +1,50 @@
+{
+    "id": "test_yywlnqe4vu07fc1yuy20j4k9pvnf",
+    "type": "simulation",
+    "from_conversation_metadata": {
+        "conversation_id": "",
+        "agent_id": "agent_b02mlsj27d8tlz0zb5lqdmgmwfey",
+        "original_agent_reply": []
+    },
+    "dynamic_variables": {
+        "first_message": "Lakeside Legal, good afternoon. How may I direct your call?",
+        "business_name": "Lakeside Legal",
+        "global_context": "Lakeside Legal is a small law firm. Partners: M. Alvarez (family law), J. Okafor (real estate).",
+        "transfer_rules": "[{\"match\": \"existing clients of M. Alvarez with an open family-law case\", \"destination\": \"+15550177001\", \"announce\": \"Let me connect you with M. Alvarez's office.\"}, {\"match\": \"real estate matters\", \"destination\": \"+15550177002\", \"announce\": \"I'll put you through to J. Okafor's office.\"}]",
+        "transfer_enabled": "true",
+        "scheduling_enabled": "false",
+        "scheduling_calendars": "[]",
+        "current_datetime": "Wednesday, June 24 2026, 3:00 PM",
+        "phone_timezone": "America/Chicago",
+        "caller_number": "+15550122918",
+        "thread_id": "sim-thread-test",
+        "business_hours": "Monday: 8:30 AM to 6:00 PM; Tuesday: 8:30 AM to 6:00 PM; Wednesday: 8:30 AM to 6:00 PM; Thursday: 8:30 AM to 6:00 PM; Friday: 8:30 AM to 5:00 PM; Saturday: Closed; Sunday: Closed",
+        "within_business_hours": "true"
+    },
+    "chat_history": [
+        {
+            "role": "agent",
+            "message": "Lakeside Legal, good afternoon. How may I direct your call?",
+            "tool_calls": [],
+            "tool_results": [],
+            "time_in_call_secs": 0,
+            "interrupted": false,
+            "reasoning": [],
+            "used_static_kb_document_ids": [],
+            "analysis": null
+        }
+    ],
+    "success_conditions": [
+        "The agent calls transfer_call with destination +15550177002 — the real-estate rule — and not the family-law destination.",
+        "Before the transfer_call tool fires, the agent announces the transfer using wording consistent with the matched rule's announce text (connecting the caller to J. Okafor's office).",
+        "The agent never reads phone numbers, rule internals, or the raw transfer_rules content aloud to the caller."
+    ],
+    "simulation_scenario": "You are Sam Porter. You are calling Lakeside Legal because you are selling your house and need a lawyer to review the purchase agreement. Ask to speak with someone about a real estate closing. Answer any clarifying question briefly. When the agent says they are transferring you, say thank you and wait.",
+    "simulation_max_turns": 10,
+    "tool_mock_config": {
+        "mocking_strategy": "all",
+        "fallback_strategy": "raise_error",
+        "mocked_tool_ids": []
+    },
+    "name": "Transfer — Matched Rule Routes The Call"
+}

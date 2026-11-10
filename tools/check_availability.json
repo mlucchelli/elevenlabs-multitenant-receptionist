@@ -1,0 +1,50 @@
+{
+    "type": "client",
+    "name": "check_availability",
+    "description": "Returns open appointment slots for one of the business's calendars. Only call it when scheduling_enabled is true. Pick the calendar from scheduling_calendars that matches what the caller wants to book; if more than one could match, ask which before calling. Call it before ever naming a time to the caller — never offer a slot this tool did not return. Express the preferred_date relative to current_datetime: the caller's 'tomorrow' is a concrete date, compute it, do not pass the word.",
+    "response_timeout_secs": 20,
+    "disable_interruptions": true,
+    "force_pre_tool_speech": false,
+    "pre_tool_speech": "force",
+    "assignments": [],
+    "tool_call_sound_behavior": "always",
+    "tool_error_handling_mode": "auto",
+    "parameters": {
+        "type": "object",
+        "required": [
+            "calendar_id",
+            "preferred_date"
+        ],
+        "description": "",
+        "properties": {
+            "calendar_id": {
+                "type": "string",
+                "description": "The id of the chosen calendar, copied exactly from scheduling_calendars.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            },
+            "preferred_date": {
+                "type": "string",
+                "description": "The date the caller asked about, as YYYY-MM-DD in the calendar's timezone.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            }
+        }
+    },
+    "expects_response": true,
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    },
+    "execution_mode": "immediate",
+    "response_mocks": [
+        {
+            "mock_result": "{\"slots\": [{\"start\": \"10:00\", \"end\": \"10:30\"}, {\"start\": \"14:00\", \"end\": \"14:30\"}, {\"start\": \"16:30\", \"end\": \"17:00\"}], \"timezone\": \"America/New_York\"}"
+        }
+    ]
+}

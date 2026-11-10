@@ -1,0 +1,79 @@
+{
+    "type": "client",
+    "name": "book_appointment",
+    "description": "Books an appointment in one of the business's calendars. Only call it after check_availability returned the chosen slot on this same call, and after the caller explicitly confirmed that exact date and time. Collect the caller's name before calling — never book under a placeholder or an invented name. Call it exactly once per booking; after it returns, confirm the booking back to the caller with the date, time and calendar timezone.",
+    "response_timeout_secs": 30,
+    "disable_interruptions": true,
+    "force_pre_tool_speech": false,
+    "pre_tool_speech": "force",
+    "assignments": [],
+    "tool_call_sound_behavior": "always",
+    "tool_error_handling_mode": "auto",
+    "parameters": {
+        "type": "object",
+        "required": [
+            "calendar_id",
+            "date",
+            "start_time",
+            "caller_name"
+        ],
+        "description": "",
+        "properties": {
+            "calendar_id": {
+                "type": "string",
+                "description": "The id of the chosen calendar, copied exactly from scheduling_calendars.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            },
+            "date": {
+                "type": "string",
+                "description": "The confirmed date as YYYY-MM-DD in the calendar's timezone.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            },
+            "start_time": {
+                "type": "string",
+                "description": "The confirmed start time as HH:MM, copied from a slot check_availability returned on this call.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            },
+            "caller_name": {
+                "type": "string",
+                "description": "The caller's name exactly as they stated it on this call. NEVER a placeholder or an invented name. If they have not given it, ask first.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            },
+            "notes": {
+                "type": "string",
+                "description": "Only what the caller volunteered about the purpose of the appointment, in their own words. Omit when they gave nothing — never fabricate a description.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            }
+        }
+    },
+    "expects_response": true,
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    },
+    "execution_mode": "immediate",
+    "response_mocks": [
+        {
+            "mock_result": "{\"status\": \"confirmed\", \"booking_id\": \"bk_000000001\"}"
+        }
+    ]
+}

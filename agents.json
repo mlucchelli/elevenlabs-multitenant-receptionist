@@ -1,0 +1,10 @@
+{
+  "$comment": "Index for the ElevenLabs CLI's `agents pull`. Nothing under ci/ or .github/ reads it — workspaces.json decides what ships.",
+  "agents": [
+    {
+      "name": "receptionist",
+      "id": "agent_b02mlsj27d8tlz0zb5lqdmgmwfey",
+      "config": "agents/receptionist/receptionist.json"
+    }
+  ]
+}

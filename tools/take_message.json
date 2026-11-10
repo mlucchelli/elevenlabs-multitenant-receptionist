@@ -1,0 +1,71 @@
+{
+    "type": "client",
+    "name": "take_message",
+    "description": "Records a message the caller leaves for the business. Use it when the caller wants information passed on. Call it before telling the caller the message is noted: never say a message is saved without having called it. Call it exactly once, only after the caller has finished giving the complete message — never with a partial or empty message. When this message is standing in for a transfer or a booking the caller asked for, you must ALREADY have told them why that is not happening, in the same reply you first declined it.",
+    "response_timeout_secs": 20,
+    "disable_interruptions": true,
+    "force_pre_tool_speech": false,
+    "pre_tool_speech": "force",
+    "assignments": [],
+    "tool_call_sound_behavior": "always",
+    "tool_error_handling_mode": "auto",
+    "parameters": {
+        "type": "object",
+        "required": [
+            "message",
+            "caller_name",
+            "thread_id"
+        ],
+        "description": "",
+        "properties": {
+            "message": {
+                "type": "string",
+                "description": "The message LITERALLY as the caller spoke it: copy their exact words from the conversation, in their language and person, changing nothing. Do not paraphrase, reorder, translate, or add framing of your own. The only edit allowed is dropping filler sounds (uh, um). If they dictated it across several turns, concatenate their exact words in order.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            },
+            "caller_name": {
+                "type": "string",
+                "description": "Who the message is from, exactly as the caller stated it on this call. NEVER a placeholder — values like 'Caller', 'customer', 'unknown' or an invented name are invalid. If the caller has not stated their name yet, do NOT call this tool: ask for their name first and wait for the answer.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            },
+            "contact_number": {
+                "type": "string",
+                "description": "Only when the caller explicitly gave a number to reach them on. Omit it otherwise — the system already knows the number they are calling from.",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            },
+            "thread_id": {
+                "type": "string",
+                "description": "",
+                "is_system_provided": false,
+                "dynamic_variable": "thread_id",
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+            }
+        }
+    },
+    "expects_response": true,
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {
+            "thread_id": ""
+        }
+    },
+    "execution_mode": "immediate",
+    "response_mocks": [
+        {
+            "mock_result": "Message saved."
+        }
+    ]
+}

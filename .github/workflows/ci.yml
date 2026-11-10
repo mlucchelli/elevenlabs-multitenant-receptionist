@@ -1,0 +1,86 @@
+name: CI — Test agent on PR
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The workspace list is data, not YAML. Adding a third workspace is an edit to
+  # workspaces.json and nothing here moves.
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      workspaces: ${{ steps.read.outputs.workspaces }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          echo "workspaces=$(jq -c '[.workspaces | to_entries[]
+            | {slug: .key, api_key_env: .value.api_key_env}]' workspaces.json)" >> "$GITHUB_OUTPUT"
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate agent, tool and test JSON files
+        run: |
+          find agents/ tools/ tests/ -name "*.json" | while read f; do
+            jq . "$f" > /dev/null || { echo "  INVALID: $f"; exit 1; }
+          done
+          jq . workspaces.json > /dev/null
+          echo "All JSON files valid."
+      - name: Unit tests
+        run: python3 ci/tests/test_translate.py
+
+  test-agent:
+    needs: [discover, validate]
+    runs-on: ubuntu-latest
+    strategy:
+      # A HIPAA failure must never hide a standard failure, or vice versa.
+      fail-fast: false
+      matrix:
+        ws: ${{ fromJSON(needs.discover.outputs.workspaces) }}
+    name: ${{ matrix.ws.slug }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fires when someone added a tool, test or MCP server in the reference
+      # workspace's UI and this workspace is now silently behind.
+      - name: Lint identifiers
+        run: python3 ci/lint_ids.py --workspace "${{ matrix.ws.slug }}"
+
+      # A node-level llm or tts.model_id silently beats the client override
+      # the session backend sends per conversation. Same check for every workspace leg —
+      # the violation is in the config file, not the workspace.
+      - name: Assert no node pins its own model
+        run: python3 ci/assert_node_models.py
+
+      # Each leg sees only its own credential. GitHub Actions can build an env
+      # var's VALUE from an expression but not its NAME, hence the fixed name
+      # plus --api-key-env. An unknown secret name resolves to an empty string
+      # rather than an error, so the driver's preflight is what catches a typo
+      # in workspaces.json.
+      - name: Push and test
+        env:
+          WORKSPACE_API_KEY: ${{ secrets[matrix.ws.api_key_env] }}
+        run: |
+          python3 ci/push_workspace.py \
+            --workspace "${{ matrix.ws.slug }}" \
+            --api-key-env WORKSPACE_API_KEY \
+            --mode ci \
+            --branch-name "${{ github.head_ref }}"
+
+      # Uploaded even when the suite is red — a red run is exactly the one worth
+      # keeping. Re-running the job replaces the log, so the log cannot be the record.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.ws.slug }}-${{ github.run_id }}
+          path: test-results-*.json
+          retention-days: 90
+          if-no-files-found: ignore

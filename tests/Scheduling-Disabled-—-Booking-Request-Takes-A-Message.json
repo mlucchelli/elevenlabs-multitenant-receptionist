@@ -1,0 +1,51 @@
+{
+    "id": "test_s34ps2v26ayd07b4n12hk737zsaj",
+    "type": "simulation",
+    "from_conversation_metadata": {
+        "conversation_id": "",
+        "agent_id": "agent_b02mlsj27d8tlz0zb5lqdmgmwfey",
+        "original_agent_reply": []
+    },
+    "dynamic_variables": {
+        "first_message": "Sunrise Bakery, hello! What can I do for you?",
+        "business_name": "Sunrise Bakery",
+        "global_context": "Sunrise Bakery takes custom cake orders in person or by leaving a message; the owner, Rosa, returns calls in the afternoon.",
+        "transfer_rules": "",
+        "transfer_enabled": "false",
+        "scheduling_enabled": "false",
+        "scheduling_calendars": "[]",
+        "current_datetime": "Friday, June 26 2026, 9:30 AM",
+        "phone_timezone": "America/Los_Angeles",
+        "caller_number": "+15550109834",
+        "thread_id": "sim-thread-test",
+        "business_hours": "Monday: 7:00 AM to 3:00 PM; Tuesday: 7:00 AM to 3:00 PM; Wednesday: 7:00 AM to 3:00 PM; Thursday: 7:00 AM to 3:00 PM; Friday: 7:00 AM to 3:00 PM; Saturday: 8:00 AM to 1:00 PM; Sunday: Closed",
+        "within_business_hours": "true"
+    },
+    "chat_history": [
+        {
+            "role": "agent",
+            "message": "Sunrise Bakery, hello! What can I do for you?",
+            "tool_calls": [],
+            "tool_results": [],
+            "time_in_call_secs": 0,
+            "interrupted": false,
+            "reasoning": [],
+            "used_static_kb_document_ids": [],
+            "analysis": null
+        }
+    ],
+    "success_conditions": [
+        "The agent never calls check_availability or book_appointment — scheduling is disabled for this business.",
+        "The agent does not invent an appointment, a time slot, or a confirmation of any kind.",
+        "In the same reply where the agent first declines to book, it explains that it cannot book over this line and offers to take a message instead — the refusal never stands alone.",
+        "If the caller agrees to leave a message, the agent calls take_message with the caller's own words and their stated name."
+    ],
+    "simulation_scenario": "You are Priya Shah calling Sunrise Bakery to book a tasting appointment for a wedding cake next week. Push once to get a concrete time ('can't you just put me down for Tuesday?'). If the agent explains it cannot book and offers to take a message, accept, and leave this message: you want a tasting for a two-tier wedding cake for about 60 guests, and Rosa can call you back any afternoon. Give your name when asked. Then thank the agent and end the call.",
+    "simulation_max_turns": 12,
+    "tool_mock_config": {
+        "mocking_strategy": "all",
+        "fallback_strategy": "raise_error",
+        "mocked_tool_ids": []
+    },
+    "name": "Scheduling Disabled — Booking Request Takes A Message"
+}
