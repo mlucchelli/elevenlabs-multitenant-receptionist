@@ -64,7 +64,11 @@ jobs:
       # plus --api-key-env. An unknown secret name resolves to an empty string
       # rather than an error, so the driver's preflight is what catches a typo
       # in workspaces.json.
+      # Skipped until the repository variable ELEVENLABS_ENABLED is true: with
+      # placeholder ids and no secrets this step can only fail. The lints above
+      # and the unit tests still run on every PR.
       - name: Push and test
+        if: ${{ vars.ELEVENLABS_ENABLED == 'true' }}
         env:
           WORKSPACE_API_KEY: ${{ secrets[matrix.ws.api_key_env] }}
         run: |

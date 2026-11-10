@@ -4,8 +4,8 @@
     "description": "Transfers the caller to a human, following the business's transfer rules. Only call it when transfer_enabled is true AND a rule in transfer_rules matches the caller's need. Before calling, tell the caller you are transferring them, using the announcement style the matched rule specifies. If no rule matches, or transfers are disabled, or the business is currently closed, do NOT call this tool: explain why the transfer is not happening (share the schedule unprompted when the reason is the hour) and offer to take a message instead.",
     "response_timeout_secs": 30,
     "disable_interruptions": true,
-    "force_pre_tool_speech": true,
-    "pre_tool_speech": "force",
+    "force_pre_tool_speech": false,
+    "pre_tool_speech": "auto",
     "assignments": [],
     "tool_call_sound_behavior": "always",
     "tool_error_handling_mode": "auto",
@@ -13,7 +13,8 @@
         "type": "object",
         "required": [
             "destination",
-            "reason"
+            "reason",
+            "thread_id"
         ],
         "description": "",
         "properties": {

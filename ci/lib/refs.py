@@ -36,7 +36,7 @@ KEY_FIELDS = {
 
 # Identifiers that are the same string in every workspace and must be left
 # alone. Adding a Voice Library voice to another workspace preserves its
-# voice_id (verified 2026-09-03), so voices need no mapping and must not be
+# voice_id, so voices need no mapping and must not be
 # reported as unmapped.
 IDENTITY_FIELDS = {"voice_id"}
 

@@ -23,7 +23,7 @@ HIPAA_PREFIX = "hipaa~"
 
 
 def provisioned(registry):
-    """A copy of the registry as it will look after bootstrap: every gap filled.
+    """A copy of the registry as it will look once provisioned: every gap filled.
 
     The fake ids are the real ones behind a fixed prefix. An earlier version
     derived them with a substring replace, which silently mapped some ids to
@@ -40,8 +40,8 @@ def provisioned(registry):
 def unprovisioned(registry):
     """A copy with every counterpart cleared.
 
-    Tests about missing counterparts must not read the live registry: bootstrap
-    fills it in as the workspace gets provisioned, so a test that assumed
+    Tests about missing counterparts must not read the live registry: it
+    fills in as the workspace gets provisioned, so a test that assumed
     "nothing is mapped yet" starts passing vacuously and then fails outright.
     """
     r = copy.deepcopy(registry)
@@ -140,11 +140,11 @@ class TestMissingCounterpart(unittest.TestCase):
         self.assertIn("test", kinds)
         self.assertIn("mcp", kinds)
 
-    def test_message_names_the_bootstrap_command(self):
+    def test_message_says_where_to_add_the_ids(self):
         r = unprovisioned(load_registry())
         with self.assertRaises(MissingCounterpart) as ctx:
             translate({"additional_tool_ids": [r["mappings"][0]["standard"]]}, r, "hipaa")
-        self.assertIn("bootstrap_workspace.py", str(ctx.exception))
+        self.assertIn("workspaces.json", str(ctx.exception))
 
 
 class TestOverlay(unittest.TestCase):
@@ -192,7 +192,7 @@ class TestIdShape(unittest.TestCase):
         self.assertTrue(looks_like_id("tool_01jxf7s8v7efcvx95acnqycz56"))
 
     def test_voice_ids_are_left_alone(self):
-        """Voices are identity across workspaces — verified 2026-09-03.
+        """Voices are identity across workspaces.
 
         The value is a MAPPED id on purpose. With a real voice id the assertion
         held whether or not the identity guard existed, because an unmapped
@@ -231,7 +231,7 @@ class TestSafetyNet(unittest.TestCase):
         self.assertIn("simulation_library", str(ctx.exception))
 
     def test_the_net_does_not_expire_once_provisioned(self):
-        """The lint's shape net goes quiet after bootstrap; this one must not.
+        """The lint's shape net goes quiet once provisioned; this one must not.
 
         Once a mapping has a target id the lint calls it mapped and says nothing,
         so if the translator also stayed silent the guard would protect exactly
@@ -280,7 +280,7 @@ class TestSkippedTests(unittest.TestCase):
 
     The rule is deliberately keyed on `omitted` and not on "the mapping is
     null". Null means not provisioned yet, and reading it as a skip would make
-    a half-bootstrapped workspace report green by running nothing at all.
+    a half-provisioned workspace report green by running nothing at all.
     """
 
     def test_nothing_is_skipped_in_the_reference_workspace(self):
@@ -362,7 +362,7 @@ class TestOmissionStripsSearchPrompt(unittest.TestCase):
 class TestTransientRetry(unittest.TestCase):
     """A dropped connection is not a verdict.
 
-    Run 34950549811 lost a whole leg to an SSL handshake reset during
+    A CI run once lost a whole leg to an SSL handshake reset during
     preflight — before one test had run.
     """
 

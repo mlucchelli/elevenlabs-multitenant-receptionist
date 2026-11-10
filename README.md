@@ -1,65 +1,60 @@
-# ElevenLabs Multi-Tenant Receptionist — Agents as Code
+# ElevenLabs Multi-Tenant Receptionist
 
-**One ElevenLabs Conversational AI agent, serving many businesses, with its entire lifecycle
-— prompts, tools, tests, deploys — managed from a git repository instead of the ElevenLabs UI.**
+A phone receptionist built on ElevenLabs Agents where one agent answers for many different businesses, and where the whole agent (prompt, workflow, tools, tests) lives in git and is deployed by CI instead of being edited in the ElevenLabs UI.
 
-This repo distills the architecture I designed and operated for a commercial AI receptionist
-platform (thousands of real phone calls across many tenant businesses), rebuilt here with
-generic content and placeholder ids so the pattern itself is the artifact.
+I built and ran this setup for a production AI receptionist product. This repo is a generic version of it: the CI code is the real thing, the agent, tools and tests were rewritten with made-up businesses, and every ElevenLabs id is a placeholder.
 
-## Highlights
+---
 
-| Problem | Solution in this repo |
-|---|---|
-| Hundreds of businesses, one agent | Tenant behavior injected at call time via `dynamic_variables`; capabilities are hard gates per tenant |
-| Prompt changes are risky | Every PR gets its own **ElevenLabs agent branch**; an LLM-judged simulation suite runs against it before merge |
-| LLM-judged tests are flaky | Verdicts split into `passed` / `failed` / `nonverdict`; free re-rolls; a **measured** 4-strike threshold instead of a guessed one |
-| HIPAA customers need zero retention | Same config ships to a second workspace with id translation, a privacy overlay asserted post-deploy, and incompatible features stripped — with their tests skipped loudly, never silently |
-| The official CLI breaks pushes | All writes go through the REST API; the CLI is pull-only (its push bugs are documented below) |
-| Call flow must be explicit, not emergent | A 5-node **workflow** (triage → transfer / scheduling → end) whose edges gate on tenant variables AND model-signaled conditions; each node carries SOP-style procedures and only the tools that stage needs |
+## What it does
+
+A call comes in for a business. The backend looks up which business owns that number and starts an ElevenLabs session, passing that business's name, opening hours, transfer rules and calendars as dynamic variables. The agent config itself knows nothing about any specific business, so adding a customer never means touching the agent.
+
+Changes to the agent go through pull requests. For each PR, CI creates an ElevenLabs branch of the agent with the same name as the git branch, pushes the config there, and runs simulated phone calls against it. Merging pushes the config to the live agent.
+
+The same config is deployed to two ElevenLabs workspaces: a normal one and a zero-retention one for HIPAA customers.
+
+---
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     caller(("Caller"))
-    subgraph backend ["Session backend (not in this repo)"]
-        resolve["Resolve called number → tenant"]
-        mint["Mint session:<br/>dynamic_variables (tenant behavior)<br/>+ conversation_config_override<br/>(llm, tts model, stability)"]
-        handlers["Client-tool handlers:<br/>transfer_call · take_message<br/>check_availability · book_appointment"]
+    subgraph backend ["Backend (not in this repo)"]
+        resolve["Find the business<br/>for the called number"]
+        mint["Start session with<br/>dynamic variables + model overrides"]
+        handlers["Client tool handlers<br/>transfer, message, calendar"]
     end
-    subgraph el ["ElevenLabs Conversational AI"]
-        agent["Shared multi-tenant agent<br/>(this repo: prompt, workflow, tools, tests)"]
-        kb[("Knowledge base<br/>via MCP server")]
-        wh["Post-call webhook<br/>(transcript)"]
+    subgraph el ["ElevenLabs Agents"]
+        agent["Receptionist agent<br/>prompt + workflow + tools"]
+        kb[("Knowledge base<br/>MCP server")]
+        wh["Post-call webhook"]
     end
-    git[("This repo<br/>agents/ tools/ tests/")]
-    ci["GitHub Actions<br/>per-PR agent branch + simulation suite<br/>merge → Main of each workspace"]
+    git[("This repo")]
+    ci["GitHub Actions"]
 
-    caller -->|"PSTN / SIP"| resolve --> mint -->|"startSession"| agent
-    agent <-->|"client tool calls"| handlers
+    caller -->|phone call| resolve --> mint -->|start session| agent
+    agent <-->|tool calls| handlers
     agent --- kb
-    agent -->|"call ended"| wh --> backend
-    git --> ci -->|"REST API"| el
+    agent -->|transcript| wh --> backend
+    git --> ci -->|REST API| el
 ```
 
-The backend and telephony layer are intentionally out of scope: every integration point they
-need (which variables to send, which client tools to implement, which overrides are enabled)
-is defined by the JSON in this repo.
+The backend and the telephony side are not part of this repo. What they need to know is all here: which variables to send, which client tools to implement and which overrides the agent accepts.
 
-## How multi-tenancy works
+### One agent, many businesses
 
-The agent config is tenant-agnostic. At session start, the telephony backend resolves the
-called number to a business and opens the conversation with that tenant's variables:
+Each call starts with something like this:
 
-```jsonc
+```json
 {
   "dynamic_variables": {
     "business_name": "Harbor Dental",
     "first_message": "Hi, you've reached Harbor Dental. How can I help you today?",
     "business_hours": "Monday: 9:00 AM to 5:00 PM; ...",
     "within_business_hours": "true",
-    "current_datetime": "Tuesday, June 23 2026, 2:00 PM",   // pinned — the agent never reads a wall clock
+    "current_datetime": "Tuesday, June 23 2026, 2:00 PM",
     "transfer_enabled": "true",
     "transfer_rules": "[{\"match\": \"...\", \"destination\": \"...\", \"announce\": \"...\"}]",
     "scheduling_enabled": "false",
@@ -69,158 +64,155 @@ called number to a business and opens the conversation with that tenant's variab
 }
 ```
 
-The prompt (`agents/receptionist/receptionist.json`) treats each capability as a **hard
-gate**: a disabled capability does not exist on that call. On top of the shared base prompt
-sits a **workflow**: a triage node routes to dedicated transfer and scheduling nodes, each
-carrying numbered, SOP-style procedures in its `additional_prompt` and only the tools that
-stage needs (`additional_tool_ids`). Edges combine a deterministic check on the tenant's
-gate variable (`transfer_enabled == "true"`) with a model-signaled intent condition, so a
-tenant with scheduling disabled can never even enter the booking stage. The simulation
-tests exercise the same mechanism — each test file injects a different fictional tenant (a dental clinic, a yoga
-studio, a law firm, a bakery) and asserts the platform behaves correctly *for that tenant
-type*. A test failure means the shared platform broke for a class of tenant, not that one
-business's config is wrong.
+`transfer_enabled` and `scheduling_enabled` switch whole features on and off per business. `current_datetime` is always sent by the backend. The agent never reads the real clock, otherwise a test about "tomorrow" passes or fails depending on the day CI runs.
 
-The committed defaults are `claude-haiku-5-5` for the LLM and `eleven_v4_turbo` for TTS
-(Eleven v4 exposes exactly two voice controls — `stability` and `similarity_boost` — no
-speed, style or SSML). Per-conversation **client overrides** (`tts.model_id`,
-`agent.prompt.llm`, `tts.stability`, `tts.similarity_boost`) are enabled in
-`platform_settings.overrides`, so the backend can run model experiments per call without a
-redeploy — e.g. an A/B arm on a new LLM. A rule this
-enables: no workflow node may pin its own `llm` or `tts.model_id`, because a node-level value
-silently beats the override (`ci/assert_node_models.py` enforces it on every PR).
+The backend can also override the LLM and the TTS model per call (`platform_settings.overrides`). That is how I roll a new model out to a percentage of customers without redeploying the agent. The defaults in the config are `claude-haiku-5-5` and `eleven_v4_turbo`.
 
-## Pipeline
+### Workflow
+
+```
+start → Reception & Triage ─┬→ Call Transfer ────────┐
+              ↑             ├→ Schedule Appointment ─┤
+              └─────────────┴────────────────────────┘
+                            └→ end
+```
+
+The base prompt holds what is true in every stage: how to talk on the phone, what the agent knows about the business, how to take a message. Each workflow node adds its own step-by-step procedures (`additional_prompt`) and its own tools (`additional_tool_ids`), so the booking tools only exist inside the scheduling node.
+
+The edges out of triage check two things: the feature flag for that business (`scheduling_enabled == "true"`) and an LLM condition about what the caller wants. If scheduling is off for a business, the agent cannot reach the booking node no matter what the caller says. The same edge carries a backward condition that sends the call back to triage when the booking or the transfer is over. Only triage can end the call.
+
+### CI on every PR
 
 ```mermaid
 flowchart TD
-    pr[/"Commit on a PR"/]
-
-    subgraph ci ["CI — every PR commit, fan-out per workspace"]
-        lint["Lint ids: every workspace-scoped id\nhas a counterpart (ci/lint_ids.py)"]
-        models["Assert no node pins its own model\n(ci/assert_node_models.py)"]
-        tools["Push tools (REST, keeps response_mocks)"]
-        tests["Push test definitions (before the suite runs)"]
-        branch["Resolve or create an ElevenLabs agent branch\nnamed after the git branch"]
-        agent["PATCH agent config onto that branch"]
-        suite["Run attached simulation tests vs the branch\nstrike policy + nonverdict re-rolls"]
-    end
-
-    subgraph deploy ["Deploy — on merge, workspaces walked in deploy_order"]
-        hipaa["hipaa first: translate ids, apply privacy\noverlay, strip omitted features, push to Main"]
-        std["then standard: identity push to Main"]
-        assert["Read agents back, assert live privacy block\n(ci/assert_privacy.py)"]
-    end
-
-    pr --> lint --> models --> tools --> tests --> branch --> agent --> suite
-    suite -->|green + review| hipaa --> std --> assert
+    pr[/"Commit on a PR"/] --> lint["Lint ids<br/>ci/lint_ids.py"]
+    lint --> tools["Push tools and tests"]
+    tools --> branch["Find or create the ElevenLabs branch<br/>named after the git branch"]
+    branch --> agent["Push agent config to that branch"]
+    agent --> suite["Run the simulation tests<br/>against the branch"]
+    suite -->|merge| hipaa["Deploy to the HIPAA workspace"]
+    hipaa --> std["Deploy to the standard workspace"]
+    std --> check["Read the agent back and<br/>check the privacy settings"]
 ```
 
-HIPAA deploys **first** on purpose: a failure there leaves production untouched, while a
-standard-first failure would leave the HIPAA workspace stale after production had already
-moved.
+Only the agent config is branch scoped. Tools and tests are global in an ElevenLabs workspace, so editing a tool in a PR changes it for the live agent too.
 
-## The workspace registry
+All pushes use the REST API directly. The official CLI is fine for pulling, but when pushing it drops `response_mocks` from tools, fails on some agent payloads with a 422, and cannot run tests against a branch.
 
-`workspaces.json` is the single source of truth: which workspaces exist, which agents ship to
-each (`deploy_to`), the deploy order, and a translation table mapping every workspace-scoped
-id (agents, tools, tests, MCP servers, webhooks) from the reference workspace to its
-counterpart elsewhere. Three invariants:
+### Two workspaces
 
-1. The versioned JSON always holds the **reference workspace's** ids. Pushing there is the
-   identity function — the repo cannot corrupt the workspace carrying real traffic.
-2. Ids are located **by position, never by shape**. A regex sweep for `agent_[a-z0-9]+`
-   would match `agent_response` — a client-event name — and corrupt it; and only a
-   position walk can reach ids that appear as object *keys* (`tool_mock_overrides`).
-3. The registry may name an environment variable; it may **never hold a key value**
-   (linted on every run).
+ElevenLabs ids (agents, tools, tests, MCP servers, webhooks) are different in every workspace. The JSON in this repo always carries the ids of the `standard` workspace, and `workspaces.json` maps each one to its id in the other workspace. Pushing to `standard` changes nothing in the files. Pushing to `hipaa` swaps the ids, applies the privacy settings (zero retention, no recording) and removes what that workspace cannot have: an MCP server cannot be attached to a zero-retention workspace, so the knowledge search part of the prompt is removed there and the test that depends on it is skipped, with the reason printed in the log.
 
-## Testing philosophy
+The id swap walks the JSON by field name instead of using a regex. `agent_response` is an ElevenLabs event name and a pattern like `agent_\w+` would have rewritten it. Some ids are also object keys (`tool_mock_overrides`), which a find and replace on values would miss.
 
-Simulation tests are LLM conversations judged by an LLM. One run proves nothing, so the
-pipeline encodes what a red check is allowed to mean:
+HIPAA is deployed first. If it fails, production has not been touched yet.
 
-| Verdict | Meaning | Counts as a strike? |
-|---|---|---|
-| `passed` | every success condition met | — |
-| `failed` | the judge evaluated and the agent got it wrong | yes |
-| `nonverdict` | the judge produced no answer (timeout, API error, inconclusive) | no — re-rolled free |
+### Flaky tests
 
-A test fails the build after **4 real `failed` verdicts** — a measured threshold, not a
-taste: at the suite's observed ~10% per-test round-0 failure rate, 2 strikes produce a false
-red roughly one run in five, 4 strikes one in five hundred, while every genuine defect
-observed failed on *every* attempt and still strikes out. `ci/test_stability.py` re-measures
-the noise floor across recent runs before anyone tunes the threshold.
+The simulation tests are an LLM playing the caller and another LLM judging the transcript, so they fail randomly some of the time. On the production suite (23 tests) I measured about 10% of tests failing on a first run with nothing actually broken. With a rule like "retry once" that made roughly one build in five red for no reason, and people stopped reading the check. Those numbers are from that suite, not from the 5 tests in this repo.
 
-Tests that exercise a feature a workspace deliberately omits (e.g. knowledge-base search via
-MCP in the zero-retention workspace) declare it with `requires` in the registry and are
-skipped there — logged by name and reason, because a silent skip and a permanently red test
-are both ways a check stops meaning anything.
+What the pipeline does now:
 
-## Why REST instead of the official CLI (push direction)
+- A test only counts as failed when the judge gave a real "failed" verdict. Timeouts and "inconclusive" are retried and do not count.
+- A test fails the build after 4 real failures. The real bugs I hit failed every single time, so they still get caught.
+- `ci/test_stability.py` prints pass/fail per test over the last CI runs, to tell a broken test from a noisy one.
 
-| CLI command | Issue | Used instead |
-|---|---|---|
-| `agents push` | serialization bug wraps LLM AST nodes → 422 | `PATCH /v1/convai/agents/{id}?branch_id=` |
-| `tools push` | silently drops `response_mocks` | REST loop over `tools.json` |
-| `agents test` | no `--branch` flag — always tests Main | `POST /run-tests` with `branch_id` |
+---
 
-Pull commands are fine and are how the repo syncs back from the reference workspace.
+## Stack
 
-## Repo layout
+| Layer | Technology |
+|-------|------------|
+| Voice agent | ElevenLabs Agents (workflow, client tools, simulation tests, branches) |
+| LLM | `claude-haiku-5-5`, overridable per call |
+| TTS | `eleven_v4_turbo`, overridable per call |
+| CI/CD | GitHub Actions |
+| Pipeline code | Python 3, standard library only |
+| Config checks | `jq`, `unittest` |
+
+---
+
+## Project structure
 
 ```
-workspaces.json        # workspace registry + id translation table (ids here are placeholders)
-agents/receptionist/   # the multi-tenant agent config: prompt, variables, overrides, attached tests
-tools/                 # tool definitions, each with response_mocks for simulation
-tests/                 # simulation tests — one fictional tenant each
+workspaces.json                  — Workspaces, which agent ships where, id mapping table
+agents.json                      — Index used by the ElevenLabs CLI for `agents pull`
+agents/receptionist/
+└── receptionist.json            — Agent config: base prompt, workflow nodes and edges, overrides
+tools/
+├── transfer_call.json           — Client tools. Each one has response_mocks,
+├── take_message.json              used only during simulation tests
+├── check_availability.json
+└── book_appointment.json
+tests/                           — Simulation tests, each one a different made-up business
 ci/
-  push_workspace.py    # the driver CI and deploy both run, one workspace at a time
-  lib/                 # refs (where ids live) / translate (id substitution + overlay) / push (REST)
-  lint_ids.py          # every id has a counterpart in every workspace it ships to
-  assert_node_models.py# no node may out-pin the per-conversation model overrides
-  assert_privacy.py    # post-deploy read-back of the live privacy block
-  test_stability.py    # measures suite flakiness across CI runs
-  tests/               # unit tests for the translator (run first in CI)
-.github/workflows/     # ci.yml (PR) / deploy.yml (merge) / cleanup.yml (see its comments)
+├── push_workspace.py            — Entry point for CI and deploy: pushes one workspace, runs the tests
+├── lint_ids.py                  — Fails if an id has no counterpart in the other workspace
+├── assert_node_models.py        — Fails if a workflow node sets its own LLM or TTS model
+├── assert_privacy.py            — After deploy: reads the agent back and checks privacy settings
+├── test_stability.py            — Pass/fail per test across recent CI runs
+├── lib/
+│   ├── refs.py                  — Which JSON fields hold ids
+│   ├── translate.py             — Id swap, privacy overlay, removal of unsupported features
+│   └── push.py                  — REST calls, retries, test polling
+└── tests/test_translate.py      — Unit tests for the id translation
+.github/workflows/
+├── ci.yml                       — On PR: validate, push to a branch, run the tests
+├── deploy.yml                   — On merge: deploy each workspace in order
+└── cleanup.yml                  — Tries to delete the PR branch (see Known issues)
 ```
 
-## Running it yourself
+---
 
-All ids in this repo are placeholders. To point it at real workspaces:
+## Setup
 
-1. Create an agent, the four tools, and the tests in your ElevenLabs workspace (the configs
-   here are complete payloads — `POST /v1/convai/agents/create`, `/tools/create`,
-   `/agent-testing/create`).
-2. Write the resulting ids into `workspaces.json`, `tools.json` and the test files
-   (`agents pull` / `tools pull` / `tests pull` from the official CLI do this for you).
-3. Set the `ELEVENLABS_API_KEY` (and optionally `ELEVENLABS_API_KEY_HIPAA`) secrets, and the
-   `DEPLOY_ENABLED=true` repository variable.
-4. Open a PR — CI pushes everything to a per-PR agent branch and runs the suite:
+The ids in this repo are placeholders, so you need your own ElevenLabs workspace.
+
+### 1. Create the resources
+
+Create the agent, the four tools and the tests in ElevenLabs. The JSON files here can be used as the request bodies.
+
+### 2. Put your ids in the repo
+
+Easiest is to pull them with the CLI:
 
 ```bash
-# or locally, same driver CI runs:
+npx @elevenlabs/cli agents pull --agent <your_agent_id> --output-dir agents
+npx @elevenlabs/cli tools pull
+npx @elevenlabs/cli tests pull --all --output-dir tests
+```
+
+Then update `workspaces.json` with the same ids. If you only have one workspace, delete the `hipaa` entry and take it out of `deploy_to` and `deploy_order`.
+
+### 3. Check it locally
+
+```bash
+python3 ci/tests/test_translate.py
+python3 ci/lint_ids.py --workspace standard
+python3 ci/assert_node_models.py
+```
+
+### 4. Run the pipeline
+
+```bash
 ELEVENLABS_API_KEY=... python3 ci/push_workspace.py \
   --workspace standard --mode ci --branch-name "$(git rev-parse --abbrev-ref HEAD)"
 ```
 
-## Operational lessons baked into the code
-
-- **Branch deletion is left broken on purpose.** The obvious "fix" for the 405 on
-  `DELETE .../branches/{id}` — scoping the agent delete with `?branch_id=` the way `PATCH`
-  scopes — ignores the query param and deletes the whole agent. `cleanup.yml`'s comments
-  tell the story.
-- **Tests are pushed before the suite runs**, so a PR that changes a success condition is
-  evaluated against the condition it just changed, not the previous revision.
-- **A workspace that can't hold a feature never hears of it.** Stripping the MCP server
-  alone made the agent substitute `end_call` for the search tool and hang up on callers;
-  the omission therefore strips the whole prompt section that mentions searching.
-- **`current_datetime` is pinned, never read from a wall clock** — otherwise a test passes
-  or fails depending on what weekday CI happens to run.
-
-`ci/README.md` documents the pipeline internals, the REST endpoints used, and the required
-GitHub configuration.
+This is the same command CI runs. For GitHub Actions, add `ELEVENLABS_API_KEY` (and `ELEVENLABS_API_KEY_HIPAA` if you use the second workspace) as repository secrets, and set the repository variable `ELEVENLABS_ENABLED` to `true`. Until that variable is set, CI only runs the lints and unit tests and never calls ElevenLabs.
 
 ---
 
-MIT — see [LICENSE](LICENSE).
+## Known issues
+
+- **PR branches are never deleted.** `DELETE /v1/convai/agents/{id}/branches/{branch_id}` returns 405. Do not try `DELETE /v1/convai/agents/{id}?branch_id=...` instead: it ignores the branch and deletes the whole agent. I found that out in production. Branches have to be cleaned up by hand in the UI.
+- **The knowledge test needs a real MCP server.** The agent expects an MCP server that exposes a tool called `search_knowledge`. The id in this repo is a placeholder and MCP tools cannot be mocked like client tools, so `Knowledge — Searches Before Answering` only means something once you attach your own server.
+- **Tools and tests are not isolated per PR.** They are workspace global, so a PR that edits a tool changes it for the live agent as soon as CI runs.
+
+More detail on the pipeline in [ci/README.md](ci/README.md).
+
+---
+
+## License
+
+MIT

@@ -7,37 +7,44 @@ on:
 
 jobs:
   cleanup:
-    if: github.event.pull_request.merged == true
+    if: ${{ github.event.pull_request.merged == true && vars.ELEVENLABS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Delete ElevenLabs feature branch
+      - uses: actions/checkout@v4
+
+      # KNOWN BROKEN: the DELETE below returns 405 Method Not Allowed and deletes
+      # nothing, so PR branches pile up on ElevenLabs and are removed by hand.
+      #
+      # DO NOT "fix" this by switching to
+      #   DELETE /v1/convai/agents/$AGENT_ID?branch_id=$BRANCH_ID
+      # That call ignores branch_id and deletes the ENTIRE AGENT. It happened in
+      # production once. The correct branch-scoped delete is still unknown: check
+      # with ElevenLabs support first, and try it on a throwaway agent.
+      - name: Delete the PR branch of every agent in every workspace
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_API_KEY_HIPAA: ${{ secrets.ELEVENLABS_API_KEY_HIPAA }}
+          SOURCE_BRANCH: ${{ github.head_ref }}
         run: |
-          AGENT_ID="agent_b02mlsj27d8tlz0zb5lqdmgmwfey"
-          SOURCE_BRANCH="${{ github.head_ref }}"
-
-          echo "Looking for ElevenLabs branch: $SOURCE_BRANCH"
-          BRANCH_ID=$(curl -s "https://api.elevenlabs.io/v1/convai/agents/$AGENT_ID/branches" \
-            -H "xi-api-key: $ELEVENLABS_API_KEY" | \
-            jq -r --arg name "$SOURCE_BRANCH" '.results[] | select(.name == $name) | .id // empty')
-
-          if [ -n "$BRANCH_ID" ] && [ "$BRANCH_ID" != "null" ]; then
-            echo "Deleting ElevenLabs branch: $SOURCE_BRANCH ($BRANCH_ID)"
-            # KNOWN BROKEN: this returns 405 Method Not Allowed and deletes nothing —
-            # branches currently pile up on ElevenLabs and must be cleaned up manually.
-            #
-            # DO NOT "fix" this by switching to
-            #   DELETE /v1/convai/agents/$AGENT_ID?branch_id=$BRANCH_ID
-            # That pattern deletes the ENTIRE AGENT regardless of the branch_id query
-            # param — confirmed the hard way in production on 2026-07-02/03. The correct
-            # branch-scoped delete call is still unknown; verify with ElevenLabs
-            # support/docs before changing this, and test against a throwaway agent
-            # first, never production.
-            curl -s -X DELETE \
-              "https://api.elevenlabs.io/v1/convai/agents/$AGENT_ID/branches/$BRANCH_ID" \
-              -H "xi-api-key: $ELEVENLABS_API_KEY"
-            echo "Done."
-          else
-            echo "No ElevenLabs branch found for: $SOURCE_BRANCH (may have been deleted already)"
-          fi
+          for ws in $(jq -r '.workspaces | keys[]' workspaces.json); do
+            key_env=$(jq -r --arg ws "$ws" '.workspaces[$ws].api_key_env' workspaces.json)
+            api_key="${!key_env}"
+            if [ -z "$api_key" ]; then
+              echo "::warning::$ws: secret $key_env is not set, skipping"
+              continue
+            fi
+            for agent_id in $(jq -r --arg ws "$ws" \
+                '.agents[] | select(.deploy_to | index($ws)) | .[$ws].id // empty' workspaces.json); do
+              branch_id=$(curl -sf "https://api.elevenlabs.io/v1/convai/agents/$agent_id/branches" \
+                -H "xi-api-key: $api_key" | \
+                jq -r --arg name "$SOURCE_BRANCH" '.results[] | select(.name == $name) | .id // empty')
+              if [ -z "$branch_id" ]; then
+                echo "$ws/$agent_id: no branch named $SOURCE_BRANCH"
+                continue
+              fi
+              echo "$ws/$agent_id: deleting branch $SOURCE_BRANCH ($branch_id)"
+              curl -s -o /dev/null -w "  HTTP %{http_code}\n" -X DELETE \
+                "https://api.elevenlabs.io/v1/convai/agents/$agent_id/branches/$branch_id" \
+                -H "xi-api-key: $api_key"
+            done
+          done

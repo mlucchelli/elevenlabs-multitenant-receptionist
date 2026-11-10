@@ -1,7 +1,7 @@
 {
     "type": "client",
     "name": "check_availability",
-    "description": "Returns open appointment slots for one of the business's calendars. Only call it when scheduling_enabled is true. Pick the calendar from scheduling_calendars that matches what the caller wants to book; if more than one could match, ask which before calling. Call it before ever naming a time to the caller — never offer a slot this tool did not return. Express the preferred_date relative to current_datetime: the caller's 'tomorrow' is a concrete date, compute it, do not pass the word.",
+    "description": "Returns open appointment slots for one of the business's calendars. Only call it when scheduling_enabled is true. Pick the calendar from scheduling_calendars that matches what the caller wants to book; if more than one could match, ask which before calling. Call it before ever naming a time to the caller — never offer a slot this tool did not return. Express the preferred_date relative to current_datetime: the caller's 'tomorrow' is a concrete date, compute it, do not pass the word. Before calling it, say only a short hold phrase such as \"Let me check the calendar.\"",
     "response_timeout_secs": 20,
     "disable_interruptions": true,
     "force_pre_tool_speech": false,

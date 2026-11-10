@@ -28,7 +28,7 @@ see [ci/README.md](./ci/README.md) for the full model. Three rules:
 When you add a tool, test or MCP server, add it to `workspaces.json` too — `ci/lint_ids.py`
 fails until every id has a counterpart in every workspace the agent ships to. Null means
 *not provisioned yet* (a lint error); a kind listed in a workspace's `omitted` means
-*deliberately absent* (stripped on push, dependent tests skipped by name).
+*deliberately absent* (stripped on push; tests that declare it in `requires` are skipped, with the test id and the reason in the log).
 
 ## The agent
 
@@ -36,7 +36,10 @@ One config, `agents/receptionist/receptionist.json`: a shared base prompt plus a
 workflow — `start → Reception & Triage`, which routes to `Call Transfer` and
 `Schedule Appointment` nodes and to an `end` node. Each `override_agent` node carries
 numbered SOP-style **procedures** in its `additional_prompt` and scopes its own tools via
-`additional_tool_ids` (the base prompt holds only `take_message`). Edges out of triage are
+`additional_tool_ids` (the base prompt holds only `take_message`). `end_call` is declared only on the triage node, so the transfer and scheduling stages cannot
+hang up; their only way out is the `backward_condition` on the edge that brought the call in,
+which returns it to triage. Loops are always one edge with a forward and a backward
+condition, never two edges. Forward conditions out of triage are
 `expression` conditions: a deterministic equality on the tenant's gate variable
 (`transfer_enabled` / `scheduling_enabled` == `"true"`) AND-ed with a model-signaled intent
 condition — so a tenant with a capability disabled can never enter that stage, no matter
@@ -104,7 +107,7 @@ condition without reading the judge's rationale in the results artifact first.
 
 ## After merge
 
-`deploy.yml` runs when the repository variable `DEPLOY_ENABLED` is `true` (off by default,
+`deploy.yml` runs when the repository variable `ELEVENLABS_ENABLED` is `true` (off by default,
 since the repo ships placeholder ids). For each workspace in `deploy_order` — **hipaa first,
 then standard** — it pushes tools, tests, then the agent config to that workspace's Main
 branch, then reads the agent back and asserts the live privacy block

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Per-test pass/fail across recent CI runs, from the workflow logs.
 
-These are LLM simulations judged by an LLM, and the suite's per-test round-0
-failure rate sits around 13-20%. At that noise level a single run cannot tell
+These are LLM simulations judged by an LLM, and on the production suite this
+was built for the per-test round-0 failure rate sat around 10%. At that noise level a single run cannot tell
 you whether a change helped: the failures move around between runs while the
 total barely shifts. Reading one green run as proof is a mistake this table
 exists to prevent.
@@ -14,7 +14,7 @@ that fails in two legs out of eight is the noise floor doing its thing.
 Usage:
   python3 ci/test_stability.py             # last 4 CI runs on this branch
   python3 ci/test_stability.py --runs 8
-  python3 ci/test_stability.py --run 34873844014 --run 34871614161
+  python3 ci/test_stability.py --run <run_id> --run <run_id>
 """
 
 import argparse

@@ -36,7 +36,7 @@
     ],
     "success_conditions": [
         "The agent calls the take_message tool with the caller's message before the conversation ends. Telling the caller the message will be passed on is only acceptable if the take_message tool was actually called.",
-        "The take_message call passes the caller's message as a literal quote of their exact words (the lab delivery arriving Thursday instead of Wednesday), not a paraphrase or third-person re-narration, with the caller's name in the caller_name parameter.",
+        "The take_message call passes the caller's message as a literal quote of their exact words (the delivery arriving Thursday instead of Wednesday), not a paraphrase or third-person re-narration, with the caller's name in the caller_name parameter.",
         "The agent collects the caller's name before or while taking the message, and does not ask the caller for their phone number, since they never asked to be called back."
     ],
     "simulation_scenario": "You are Paul Rivera, a dental lab courier calling Harbor Dental. You want to leave a simple note for Dr. Chen: the crown delivery for patient order 4512 will arrive Thursday instead of Wednesday. Say early on that there is no need for anyone to call you back — you just want the message passed on. Give your name when asked. If the agent asks for your phone number, say it's not necessary. Once the agent confirms the message is taken, say 'Perfect, thank you' and end the conversation.",

@@ -35,8 +35,8 @@
         }
     ],
     "success_conditions": [
-        "Before answering the pricing question, the agent searches the knowledge base (a knowledge/search tool call is visible in the transcript) instead of answering from the prompt alone.",
-        "If the search returns nothing usable, the agent says it does not have that information and offers to take a message — it never invents a price.",
+        "Before answering the pricing question, the agent calls the search_knowledge tool instead of answering from the prompt alone.",
+        "If the search errors or returns nothing usable, the agent says it does not have that information and offers to take a message. It never invents a price.",
         "The agent does not end the call merely because it could not answer the question."
     ],
     "simulation_scenario": "You are Alex Kim calling Harbor Dental. Ask how much a routine cleaning costs for a new patient without insurance. If the agent cannot find the price, ask them to have someone call you back with it, leave your name, and end the call politely.",
@@ -46,7 +46,7 @@
         "fallback_strategy": "raise_error",
         "mocked_tool_ids": []
     },
-    "name": "Knowledge — Answers From The Knowledge Base",
+    "name": "Knowledge — Searches Before Answering",
     "tool_mock_overrides": {
         "tool_1xq3q9t86b3nd981fgt7cp5hf4t1": [
             {

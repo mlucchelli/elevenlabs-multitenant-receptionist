@@ -109,7 +109,7 @@ A test declares what it exercises on its own mapping in `workspaces.json`:
 ```json
 {
   "kind": "test",
-  "name": "Knowledge — Answers From The Knowledge Base",
+  "name": "Knowledge — Searches Before Answering",
   "standard": "test_…",
   "hipaa": "test_…",
   "requires": ["mcp/knowledge_base"]
@@ -117,10 +117,10 @@ A test declares what it exercises on its own mapping in `workspaces.json`:
 ```
 
 The test is dropped from the suite in any workspace whose `omitted` list covers that kind,
-logged by name and reason. A `requires` naming no mapping is a hard error — a typo would
+logged with the test id and the requirement. A `requires` naming no mapping is a hard error — a typo would
 otherwise silently re-enable the test everywhere. The rule keys on `omitted`, not on "the
 mapping is null": null means *not provisioned yet*, and reading that as a skip would let a
-half-bootstrapped workspace run nothing and report green.
+half-provisioned workspace run nothing and report green.
 
 ## Deploy workflow — `deploy.yml`
 
@@ -161,7 +161,7 @@ touching this, and test against a throwaway agent first.
 |---|---|---|
 | `ELEVENLABS_API_KEY` | secret | reference workspace |
 | `ELEVENLABS_API_KEY_HIPAA` | secret | zero-retention workspace (named by its `api_key_env`) |
-| `DEPLOY_ENABLED` | variable | set `true` to activate `deploy.yml` once real ids are in place |
+| `ELEVENLABS_ENABLED` | variable | set `true` once real ids and secrets are in place. Until then `deploy.yml` and `cleanup.yml` do not run, and `ci.yml` runs only the lints and unit tests |
 
 A missing secret resolves to an empty string rather than an error, so the driver's
 `preflight` is what reports it, naming the registry variable to fix.

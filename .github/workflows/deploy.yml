@@ -11,11 +11,10 @@ concurrency:
 
 jobs:
   deploy:
-    # Gate: this repo ships with placeholder ids. Set the repository variable
-    # DEPLOY_ENABLED=true once you have provisioned your own workspaces and
-    # replaced the ids in workspaces.json — until then a push to main is a no-op
-    # instead of a guaranteed red run.
-    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    # This repo ships with placeholder ids. Set the repository variable
+    # ELEVENLABS_ENABLED=true once workspaces.json holds real ids and the API
+    # key secrets exist. Until then nothing here talks to ElevenLabs.
+    if: ${{ vars.ELEVENLABS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

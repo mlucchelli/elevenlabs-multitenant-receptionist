@@ -16,7 +16,7 @@ from .refs import IDENTITY_FIELDS, KEY_FIELDS, VALUE_FIELDS, looks_like_id
 class UntranslatedIdentifier(Exception):
     """An identifier survived translation because nothing knew where it lived.
 
-    The lint's shape-based net covers this only until bootstrap runs: once a
+    The lint's shape-based net covers this only until the workspace is provisioned: once a
     mapping has a target id, the lint calls it mapped and goes quiet, while the
     translator still passes it through untouched at an unenumerated position.
     Catching it here means the guard does not expire.
@@ -31,7 +31,7 @@ class MissingCounterpart(Exception):
     """One or more ids in the document have no id in the target workspace.
 
     Carries every gap, not the first: one run should tell you everything that
-    needs provisioning, so bootstrap is a single trip rather than a game of
+    needs provisioning, so filling them in is a single trip rather than a game of
     fix-one-rerun.
     """
 
@@ -41,7 +41,7 @@ class MissingCounterpart(Exception):
         lines = "\n".join(f"  {kind:10} {sid}  ({name})" for kind, sid, name in gaps)
         super().__init__(
             f"{target}: {len(gaps)} identifier(s) have no counterpart:\n{lines}\n"
-            f"Run ci/bootstrap_workspace.py --workspace {target} to provision them."
+            f"Create them in the {target} workspace and add their ids to mappings[] in workspaces.json."
         )
 
 
@@ -173,8 +173,8 @@ def _overlay_paths(overlay, prefix=""):
 # Every instruction about the search_knowledge MCP tool lives under this one
 # prompt header. A workspace that omits the MCP server must not be told to
 # search: with the tool absent, the Receptionist substituted end_call for it
-# and hung up on the caller (3/3 on hipaa, 2026-09-24), and a prompt rule
-# against that held only 1/3. Removing the section is deterministic.
+# and hung up on the caller (3 calls out of 3 in production), and a prompt rule
+# against that held only 1 time in 3. Removing the section is deterministic.
 SEARCH_SECTION = re.compile(r"\n# Knowledge Search\n.*?(?=\n# )", re.S)
 
 
@@ -185,7 +185,7 @@ def _strip_search_section(text):
 def apply_omissions(config, omitted):
     """Strip a dependency this workspace deliberately does without.
 
-    Recorded in workspaces.json by `bootstrap_workspace.py --omit`, and applied
+    Recorded in workspaces.json under workspaces.<slug>.omitted, and applied
     on every push, not just at provisioning time: the workspace was provisioned
     without these, so pushing a config that still references them would fail
     translation on ids that were never going to exist.

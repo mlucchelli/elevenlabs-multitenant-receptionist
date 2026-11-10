@@ -113,8 +113,8 @@ def main():
         print(f"{target} is the reference workspace — nothing to map.")
         return 0 if not errors else fail(errors)
 
-    # A dependency this workspace deliberately does without — recorded by
-    # bootstrap --omit — is not a gap waiting to be filled. Reporting it forever
+    # A dependency this workspace deliberately does without — listed in
+    # workspaces.<slug>.omitted — is not a gap waiting to be filled. Reporting it forever
     # is how a red check stops meaning anything.
     omitted = set(registry["workspaces"][target].get("omitted") or [])
     table = build_map(registry, target)

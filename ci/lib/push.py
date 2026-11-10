@@ -33,16 +33,17 @@ AGENT_FIELDS = ("name", "conversation_config", "platform_settings", "workflow", 
 # A test fails the build after this many real `failed` verdicts. It is a
 # statistical threshold, not a taste, so here is the arithmetic behind it.
 #
-# Measured over 20 CI runs on a long-lived branch, the per-test round-0 failure
-# rate is 9.7% (down from 17.7% before that work). The chance a leg goes red with
-# nothing actually broken is 1 - (1 - p**STRIKE_LIMIT)**23:
+# The numbers come from the production suite this pipeline was built for, not
+# from this repo: 23 attached tests, per-test round-0 failure rate of 9.7%
+# measured over 20 CI runs. The chance a leg goes red with nothing actually
+# broken is 1 - (1 - p**STRIKE_LIMIT)**N, which for N=23 gives:
 #
 #     STRIKE_LIMIT=2  ->  19.5%      STRIKE_LIMIT=4  ->  0.2%
 #     STRIKE_LIMIT=3  ->   2.1%      STRIKE_LIMIT=5  ->  0.02%
 #
 # At 2 the check was red often enough to be unreadable, and an unreadable check
-# is one nobody reads: a structurally unpassable test once blocked every merge for 17 days without
-# anyone noticing, because a red run looked normal.
+# is one nobody reads: a structurally unpassable test once blocked every merge
+# for over two weeks without anyone noticing, because a red run looked normal.
 #
 # Raising this does not hide that class of bug. Every real defect found while tuning this
 # suite failed on every single attempt — 6/6, 11/14, 8/16 — and would still
@@ -50,14 +51,14 @@ AGENT_FIELDS = ("name", "conversation_config", "platform_settings", "workflow", 
 # wall clock instead of the pinned current_datetime, so a test passes or fails
 # on what weekday CI happens to run.
 #
-# Re-measure with ci/test_stability.py before changing it. If the rate climbs back
-# toward 18%, 4 stops being enough and the agent needs work, not a bigger number.
+# Re-measure with ci/test_stability.py before changing it. If the rate climbs
+# well above 10%, 4 stops being enough and the agent needs work, not a bigger number.
 STRIKE_LIMIT = 4
 # Enough rounds for a test to actually reach STRIKE_LIMIT: a run that stops at 4
 # rounds while a test sits on 3 strikes reports green on an unresolved test.
 MAX_ROUNDS = 6
 # A TCP reset or a 502 from the API is not a result. Without these, one blip
-# anywhere in a run throws away the whole leg — run 34950549811 died on an SSL
+# anywhere in a run throws away the whole leg — a CI run once died on an SSL
 # handshake reset during preflight, before a single test had run.
 NET_RETRIES = 4
 NET_BACKOFF = 2

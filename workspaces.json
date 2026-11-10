@@ -124,7 +124,7 @@
     },
     {
       "kind": "test",
-      "name": "Knowledge — Answers From The Knowledge Base",
+      "name": "Knowledge — Searches Before Answering",
       "standard": "test_1au0oorcvubyl3kabgd20qnlhgz8",
       "hipaa": "test_5rh11crb3kpuryvmyq8bwzxfti7c",
       "requires": [
