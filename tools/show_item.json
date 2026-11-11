@@ -1,7 +1,7 @@
 {
     "type": "client",
     "name": "show_item",
-    "description": "Shows one item from the business's catalog on the caller's screen. Only call it when display_enabled is true: on a phone call the caller has no screen and this tool does not exist. Call it when the caller asks about an item in catalog, or when you bring one up yourself, and at most once per item per call. Do not announce it and do not wait for it before speaking: say what the item is and what it costs in one sentence, the screen carries the rest.",
+    "description": "Shows one item from the business's catalog on the caller's screen. It exists only in the Products & Pricing stage, which the workflow opens only when display_enabled is true: on a phone call the caller has no screen. Call it once for the item the caller asked about, with the id copied from catalog. Do not announce it and do not wait for it before speaking: say what the item is and what it costs in one sentence, the screen carries the rest.",
     "response_timeout_secs": 20,
     "disable_interruptions": false,
     "force_pre_tool_speech": false,

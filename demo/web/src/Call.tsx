@@ -31,6 +31,11 @@ export function CallPanel(p: Props) {
         <div className="call-who">
           <h2>{p.tenant.business_name}</h2>
           <p>{p.sub}</p>
+          <div className="caps">
+            <i className="on">Messages</i>
+            <i className={p.tenant.transfer_rules.length ? "on" : ""}>Transfers</i>
+            <i className={p.tenant.calendars.length ? "on" : ""}>Scheduling</i>
+          </div>
         </div>
         <div className="call-controls">
           <div className="seg" role="group" aria-label="How to talk to the agent">
@@ -42,8 +47,8 @@ export function CallPanel(p: Props) {
             </button>
           </div>
           {p.live ? (
-            <button type="button" className="cta hangup" onClick={p.onHangUp}>
-              <Icon name="phone" /> Hang up
+            <button type="button" className="cta hangup" aria-label="Hang up" onClick={p.onHangUp}>
+              <Icon name="phone" /> <span>Hang up</span>
             </button>
           ) : (
             <button type="button" className="cta" disabled={p.busy} onClick={p.onStart}>
@@ -96,7 +101,8 @@ function Feed({ feed, calls, steps, workflow, tenant }: { feed: FeedItem[]; call
     <div className="feed" ref={box} aria-live="polite">
       {feed.length === 0 && (
         <p className="feed-empty">
-          The conversation shows up here, together with every tool the agent calls.
+          Pick a business and call it. The agent, its prompt and its workflow are the same for all four. Only the dynamic
+          variables sent at the start of the call change.
         </p>
       )}
       {feed.map(item => {

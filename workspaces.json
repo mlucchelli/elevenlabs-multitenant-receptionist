@@ -142,6 +142,12 @@
       "name": "Display — Shows The Item The Caller Asks About",
       "standard": "test_vayiw4965pidssbkppynlp1nqge2",
       "hipaa": "test_i3s359f9suztu76014404tyn3nc8"
+    },
+    {
+      "kind": "test",
+      "name": "Display Enabled — A Request For Help Still Transfers",
+      "standard": "test_4wiisgrib1psol9p7rfkh5o8cvzx",
+      "hipaa": "test_qcnor203hl6o9wfxejlrbaye6ayg"
     }
   ],
   "deploy_order": [

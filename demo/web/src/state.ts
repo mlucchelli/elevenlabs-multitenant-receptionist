@@ -12,22 +12,31 @@ export type State = {
   steps: Step[];
   /** text mode only: the agent is streaming a reply */
   replying: boolean;
+  /** typed conversation instead of voice */
+  textMode: boolean;
+  /** set once a transfer succeeded: who the call is being handed to */
+  handedTo: string | null;
 };
 
 export type Action =
   | { type: "reset" }
   | { type: "workflow"; workflow: Workflow }
   | { type: "vars"; vars: Vars; sent: boolean }
+  | { type: "mode"; text: boolean }
   | { type: "say"; kind: "agent" | "user" | "sys"; text: string }
+  | { type: "heard"; from: "user" | "ai"; text: string }
+  | { type: "handover"; to: string }
+  | { type: "disconnected"; reason: "user" | "agent" | "error"; message?: string }
   | { type: "delta"; text: string }
   | { type: "replying"; on: boolean }
   | { type: "enter" }
   | { type: "condition"; index: number }
-  | { type: "ended" }
   | { type: "callStart"; call: ToolCall }
   | { type: "callEnd"; id: number; result: string; ok: boolean; ms: number };
 
-export const initial: State = { feed: [], calls: [], vars: null, varsSent: false, workflow: null, node: null, steps: [], replying: false };
+export const initial: State = {
+  feed: [], calls: [], vars: null, varsSent: false, workflow: null, node: null, steps: [], replying: false, textMode: false, handedTo: null,
+};
 
 let seq = 0;
 export const nextId = () => ++seq;
@@ -45,21 +54,47 @@ function move(state: State, edgeId: string | undefined, announce: boolean): Stat
   };
 }
 
+function say(state: State, kind: "agent" | "user" | "sys", text: string): State {
+  // A final agent message replaces the bubble that was being streamed.
+  const last = state.feed.at(-1);
+  if (kind === "agent" && last?.kind === "agent" && last.live) {
+    return { ...state, feed: [...state.feed.slice(0, -1), { ...last, text, live: false }] };
+  }
+  return { ...state, feed: [...state.feed, { id: nextId(), kind, text }] };
+}
+
+/** Normally the move to the end node has already been reported. This covers a hang-up without one. */
+function moveToEnd(state: State): State {
+  const end = state.workflow?.nodes.find(n => n.type === "end");
+  const current = state.workflow?.nodes.find(n => n.id === state.node);
+  if (!end || !current || current.id === end.id) return state;
+  return move(state, current.edge_order.find(id => state.workflow!.edges.some(e => e.id === id && e.target === end.id)), false);
+}
+
 export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "reset":
-      return { ...initial, vars: state.vars, workflow: state.workflow };
+      return { ...initial, vars: state.vars, workflow: state.workflow, textMode: state.textMode };
+    case "mode":
+      return { ...state, textMode: action.text };
     case "workflow":
       return { ...state, workflow: action.workflow };
     case "vars":
       return { ...state, vars: action.vars, varsSent: action.sent };
-    case "say": {
-      // A final agent message replaces the bubble that was being streamed.
-      const last = state.feed.at(-1);
-      if (action.kind === "agent" && last?.kind === "agent" && last.live) {
-        return { ...state, feed: [...state.feed.slice(0, -1), { ...last, text: action.text, live: false }] };
-      }
-      return { ...state, feed: [...state.feed, { id: nextId(), kind: action.kind, text: action.text }] };
+    case "say":
+      return say(state, action.kind, action.text);
+    case "heard":
+      // In text mode the caller's message was already shown when it was sent.
+      if (action.from === "user") return state.textMode ? state : say(state, "user", action.text);
+      return say(state, "agent", action.text);
+    case "handover":
+      return { ...state, handedTo: action.to };
+    case "disconnected": {
+      const ended = { ...state, replying: false };
+      if (state.handedTo) return say(ended, "sys", `Call handed over to ${state.handedTo}.`);
+      if (action.reason === "agent") return say(moveToEnd(ended), "sys", "The agent ended the call.");
+      if (action.reason === "error") return say(ended, "sys", `Disconnected: ${action.message ?? "connection error"}`);
+      return say(ended, "sys", "Call ended.");
     }
     case "delta": {
       const last = state.feed.at(-1);
@@ -79,15 +114,12 @@ export function reducer(state: State, action: Action): State {
     case "condition": {
       // ElevenLabs reports a workflow move as the tool notify_condition_<N>_met,
       // where N counts the current node's edges in edge_order, starting at 1.
+      // Only a move into a stage is announced in the conversation. The way back to
+      // triage is usually followed at once by the next move, and the map shows both.
       const current = state.workflow?.nodes.find(n => n.id === state.node);
-      return move(state, current?.edge_order[action.index - 1], true);
-    }
-    case "ended": {
-      // Normally the move to the end node has already been reported. This covers a hang-up without one.
-      const end = state.workflow?.nodes.find(n => n.type === "end");
-      const current = state.workflow?.nodes.find(n => n.id === state.node);
-      if (!end || !current || current.id === end.id) return state;
-      return move(state, current.edge_order.find(id => state.workflow!.edges.some(e => e.id === id && e.target === end.id)), false);
+      const edgeId = current?.edge_order[action.index - 1];
+      const forward = state.workflow?.edges.some(e => e.id === edgeId && e.source === state.node) ?? false;
+      return move(state, edgeId, forward);
     }
     case "callStart":
       return {

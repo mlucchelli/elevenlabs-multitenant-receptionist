@@ -4,8 +4,6 @@ import type { Step, Vars, Workflow, WorkflowNode } from "./types";
 
 type Props = { workflow: Workflow; node: string | null; steps: Step[]; vars: Vars | null };
 
-const BOX = { w: 150, h: 38, small: 64 };
-
 function useNarrow() {
   const query = "(max-width: 759px)";
   const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
@@ -18,26 +16,49 @@ function useNarrow() {
   return narrow;
 }
 
+type Box = { x: number; y: number; w: number };
+
+/** Columns by distance from the start node; inside a column, the order the edges are declared in. */
+function layout(workflow: Workflow, narrow: boolean) {
+  const depth = new Map<string, number>();
+  const start = workflow.nodes.find(n => n.type === "start") ?? workflow.nodes[0];
+  const queue = [start.id];
+  depth.set(start.id, 0);
+  while (queue.length) {
+    const id = queue.shift()!;
+    for (const edgeId of workflow.nodes.find(n => n.id === id)?.edge_order ?? []) {
+      const target = workflow.edges.find(e => e.id === edgeId)?.target;
+      if (target && !depth.has(target)) {
+        depth.set(target, depth.get(id)! + 1);
+        queue.push(target);
+      }
+    }
+  }
+  const columns: WorkflowNode[][] = [];
+  for (const [id, d] of depth) (columns[d] ??= []).push(workflow.nodes.find(n => n.id === id)!);
+
+  const W = narrow ? 360 : 640;
+  const row = narrow ? 36 : 38;
+  const H = Math.max(...columns.map(c => c.length)) * row + 8;
+  const widths = columns.map((_, d) => (d === 0 ? (narrow ? 44 : 58) : d === columns.length - 1 ? (narrow ? 140 : 176) : narrow ? 118 : 160));
+  const gap = (W - 8 - widths.reduce((a, b) => a + b, 0)) / Math.max(1, columns.length - 1);
+
+  const boxes = new Map<string, Box>();
+  let left = 4;
+  columns.forEach((column, d) => {
+    column.forEach((n, i) => boxes.set(n.id, { x: left + widths[d] / 2, y: H / 2 + (i - (column.length - 1) / 2) * row, w: widths[d] }));
+    left += widths[d] + gap;
+  });
+  return { W, H, boxes, boxHeight: row - 8 };
+}
+
 /**
- * The workflow drawn from the agent config, using the node positions saved by
- * the ElevenLabs editor. On wide screens it is turned on its side so it reads
- * left to right. The current node, the path taken and each move are live.
+ * The workflow drawn from the agent config. The current node, the path taken
+ * and each move are live; stages switched off for this business are dashed.
  */
 export function WorkflowMap({ workflow, node, steps, vars }: Props) {
   const narrow = useNarrow();
-  const size = narrow ? { w: 360, h: 330, px: 84, py: 26 } : { w: 720, h: 190, px: 62, py: 36 };
-
-  const xs = workflow.nodes.map(n => n.x);
-  const ys = workflow.nodes.map(n => n.y);
-  const scale = (v: number, all: number[], from: number, to: number) => {
-    const min = Math.min(...all), max = Math.max(...all);
-    return max === min ? (from + to) / 2 : from + ((v - min) / (max - min)) * (to - from);
-  };
-  const at = (n: WorkflowNode) =>
-    narrow
-      ? { x: scale(n.x, xs, size.px, size.w - size.px), y: scale(n.y, ys, size.py, size.h - size.py) }
-      : { x: scale(n.y, ys, size.px, size.w - size.px), y: scale(n.x, xs, size.py, size.h - size.py) };
-  const point = new Map(workflow.nodes.map(n => [n.id, at(n)]));
+  const { W, H, boxes, boxHeight } = layout(workflow, narrow);
 
   const visited = new Set(steps.flatMap(s => [s.from, s.to]));
   const walked = new Set(steps.map(s => s.edge));
@@ -55,28 +76,29 @@ export function WorkflowMap({ workflow, node, steps, vars }: Props) {
         <code>{node ? label(node) : "not started"}</code>
       </header>
 
-      <svg viewBox={`0 0 ${size.w} ${size.h}`} role="img" aria-label="Agent workflow">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Agent workflow">
         {workflow.edges.map(edge => {
-          const a = point.get(edge.source)!, b = point.get(edge.target)!;
-          const d = `M${a.x} ${a.y} L${b.x} ${b.y}`;
-          const off = closed(edge.gate);
+          const a = boxes.get(edge.source), b = boxes.get(edge.target);
+          if (!a || !b) return null;
+          const x1 = a.x + a.w / 2, x2 = b.x - b.w / 2, mid = (x1 + x2) / 2;
+          const d = `M${x1} ${a.y} C${mid} ${a.y} ${mid} ${b.y} ${x2} ${b.y}`;
           return (
-            <g key={edge.id} className={`wf-edge${walked.has(edge.id) ? " walked" : ""}${off ? " off" : ""}`}>
+            <g key={edge.id} className={`wf-edge${walked.has(edge.id) ? " walked" : ""}${closed(edge.gate) ? " off" : ""}`}>
               <path d={d} />
               {last?.edge === edge.id && <Traveller key={last.id} d={d} back={last.back} />}
             </g>
           );
         })}
         {workflow.nodes.map(n => {
-          const p = point.get(n.id)!;
-          const w = n.type === "override_agent" ? BOX.w : BOX.small;
+          const box = boxes.get(n.id);
+          if (!box) return null;
           const gate = workflow.edges.find(e => e.target === n.id && e.gate)?.gate ?? null;
           const off = closed(gate);
           const state = n.id === node ? " current" : visited.has(n.id) ? " visited" : "";
           return (
-            <g key={n.id} className={`wf-node${state}${off ? " off" : ""}`} transform={`translate(${p.x} ${p.y})`}>
+            <g key={n.id} className={`wf-node${state}${off ? " off" : ""}`} transform={`translate(${box.x} ${box.y})`}>
               <title>{off ? `${gate} is false for this business, so the agent can never get here` : n.tools.join(", ")}</title>
-              <rect x={-w / 2} y={-BOX.h / 2} width={w} height={BOX.h} rx={BOX.h / 2} />
+              <rect x={-box.w / 2} y={-boxHeight / 2} width={box.w} height={boxHeight} rx={boxHeight / 2} />
               <text dy="0.35em">{n.label}</text>
             </g>
           );
@@ -90,7 +112,7 @@ export function WorkflowMap({ workflow, node, steps, vars }: Props) {
             {why ? ` ${why}` : " Unconditional: every call starts here."}
           </>
         ) : (
-          "Start a call to watch the agent move through its workflow. Dashed stages are switched off for this business."
+          "Dashed stages are switched off for this business. Start a call to watch the agent move through the rest."
         )}
       </p>
     </article>

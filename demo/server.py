@@ -142,35 +142,71 @@ def slots_for(calendar_id, date):
     return [s for s in starts if s not in taken]
 
 
+def check_availability(tenant, params):
+    calendar = next((c for c in tenant["calendars"] if c["id"] == params["calendar_id"]), None)
+    if not calendar:
+        return {"error": "unknown calendar_id"}
+    return {
+        "slots": [
+            {"start": s, "end": (datetime.strptime(s, "%H:%M") + timedelta(minutes=30)).strftime("%H:%M")}
+            for s in slots_for(calendar["id"], params["preferred_date"])
+        ],
+        "timezone": calendar["timezone"],
+    }
+
+
+def book_appointment(tenant, params):
+    if params["calendar_id"] not in {c["id"] for c in tenant["calendars"]}:
+        return {"error": "unknown calendar_id"}
+    if params["start_time"] not in slots_for(params["calendar_id"], params["date"]):
+        return {"status": "rejected", "reason": "slot not available"}
+    return {"status": "confirmed", "booking_id": f"bk_{uuid.uuid4().hex[:8]}"}
+
+
+def take_message(tenant, params):
+    return "Message saved."
+
+
+def transfer_call(tenant, params):
+    if params["destination"] not in {r["destination"] for r in tenant["transfer_rules"]}:
+        return {"error": "destination is not in this business's transfer rules"}
+    return "Transfer initiated."
+
+
+def show_item(tenant, params):
+    if params["item_id"] not in {i["id"] for i in tenant["catalog"]}:
+        return {"error": "item_id is not in this business's catalog"}
+    return "Shown on the caller's screen."
+
+
+TOOLS = {f.__name__: f for f in (check_availability, book_appointment, take_message, transfer_call, show_item)}
+
+# Which parameters each tool needs, read from the tool definitions the agent is deployed with.
+REQUIRED = {
+    spec["name"]: spec["parameters"]["required"]
+    for spec in (json.loads((REPO / t["config"]).read_text()) for t in json.loads((REPO / "tools.json").read_text())["tools"])
+}
+
+
 def run_tool(tenant, name, params):
-    """Execute one client tool. The return value is what the agent reads."""
-    if name == "check_availability":
-        calendar = next((c for c in tenant["calendars"] if c["id"] == params.get("calendar_id")), None)
-        if not calendar:
-            return {"error": "unknown calendar_id"}
-        return {
-            "slots": [
-                {"start": s, "end": (datetime.strptime(s, "%H:%M") + timedelta(minutes=30)).strftime("%H:%M")}
-                for s in slots_for(calendar["id"], params["preferred_date"])
-            ],
-            "timezone": calendar["timezone"],
-        }
-    if name == "book_appointment":
-        if params.get("start_time") not in slots_for(params.get("calendar_id"), params["date"]):
-            return {"status": "rejected", "reason": "slot not available"}
-        return {"status": "confirmed", "booking_id": f"bk_{uuid.uuid4().hex[:8]}"}
-    if name == "take_message":
-        return "Message saved."
-    if name == "transfer_call":
-        known = {r["destination"] for r in tenant["transfer_rules"]}
-        if params.get("destination") not in known:
-            return {"error": "destination is not in this business's transfer rules"}
-        return "Transfer initiated."
-    if name == "show_item":
-        if params.get("item_id") not in {i["id"] for i in tenant["catalog"]}:
-            return {"error": "item_id is not in this business's catalog"}
-        return "Shown on the caller's screen."
-    return {"error": f"unknown tool {name}"}
+    """Execute one client tool. The return value is what the agent reads.
+
+    A bad call comes back as {"error": ...} instead of raising: the agent can
+    read the reason and correct itself, which it cannot do with an HTTP 500.
+    """
+    if name not in TOOLS:
+        return {"error": f"unknown tool {name}"}
+    missing = [p for p in REQUIRED.get(name, []) if not params.get(p)]
+    if missing:
+        return {"error": f"missing parameters: {', '.join(missing)}"}
+    try:
+        return TOOLS[name](tenant, params)
+    except ValueError as e:  # a date or time that is not in the expected format
+        return {"error": str(e)}
+
+
+def failed(result):
+    return isinstance(result, dict) and ("error" in result or result.get("status") == "rejected")
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -216,11 +252,11 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.reply(200, {"signed_url": signed_url(), "dynamic_variables": dynamic_variables(tenant)})
             if self.path.startswith("/api/tools/"):
                 name = self.path.rsplit("/", 1)[1]
-                result = run_tool(tenant, name, data.get("params") or {})
-                rejected = isinstance(result, dict) and ("error" in result or result.get("status") == "rejected")
-                if not rejected:
-                    LOG.append({"tenant": tenant["id"], "tool": name, "params": data.get("params") or {}})
-                return self.reply(200, {"result": result, "ok": not rejected})
+                params = data.get("params") or {}
+                result = run_tool(tenant, name, params)
+                if not failed(result):
+                    LOG.append({"tenant": tenant["id"], "tool": name, "params": params})
+                return self.reply(200, {"result": result, "ok": not failed(result)})
             self.reply(404, {"error": "not found"})
         except urllib.error.HTTPError as e:
             self.reply(502, {"error": f"ElevenLabs answered {e.code}: {e.read().decode('utf-8', 'replace')[:300]}"})

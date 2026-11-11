@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties, type Dispatch, type RefObject } from "react";
+import { useCallback, useEffect, useReducer, useState, type CSSProperties, type Dispatch } from "react";
 import {
   ConversationProvider,
   useConversationClientTool,
@@ -15,10 +15,6 @@ import type { Params, Tenant, ToolCall, ToolName } from "./types";
 
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initial);
-  // Read inside SDK callbacks, which outlive the render that created them.
-  const textMode = useRef(false);
-  const handedTo = useRef<string | null>(null);
-
   return (
     <ConversationProvider
       onConnect={() => dispatch({ type: "enter" })}
@@ -27,10 +23,7 @@ export default function App() {
         const moved = "tool_type" in event && event.tool_type === "workflow" && !event.is_error && /^notify_condition_(\d+)_met$/.exec(event.tool_name);
         if (moved) dispatch({ type: "condition", index: Number(moved[1]) });
       }}
-      onMessage={({ message, source }) => {
-        if (source === "user" && textMode.current) return; // typed messages are shown when they are sent
-        dispatch({ type: "say", kind: source === "user" ? "user" : "agent", text: message });
-      }}
+      onMessage={({ message, source }) => dispatch({ type: "heard", from: source, text: message })}
       // Text mode streams the reply in parts.
       onAgentChatResponsePart={part => {
         if (part.type === "start") dispatch({ type: "replying", on: true });
@@ -38,52 +31,32 @@ export default function App() {
         if (part.type === "stop") dispatch({ type: "replying", on: false });
       }}
       onError={message => dispatch({ type: "say", kind: "sys", text: String(message) })}
-      onDisconnect={details => {
-        dispatch({ type: "replying", on: false });
-        if (handedTo.current) {
-          dispatch({ type: "say", kind: "sys", text: `Call handed over to ${handedTo.current}.` });
-        } else if (details.reason === "agent") {
-          dispatch({ type: "ended" });
-          dispatch({ type: "say", kind: "sys", text: "The agent ended the call." });
-        } else if (details.reason === "error") {
-          dispatch({ type: "say", kind: "sys", text: `Disconnected: ${details.message}` });
-        } else {
-          dispatch({ type: "say", kind: "sys", text: "Call ended." });
-        }
-      }}
+      onDisconnect={details => dispatch({ type: "disconnected", reason: details.reason, message: "message" in details ? details.message : undefined })}
     >
-      <Demo state={state} dispatch={dispatch} textModeRef={textMode} handedTo={handedTo} />
+      <Demo state={state} dispatch={dispatch} />
     </ConversationProvider>
   );
 }
 
-type DemoProps = {
-  state: State;
-  dispatch: Dispatch<Action>;
-  textModeRef: RefObject<boolean>;
-  handedTo: RefObject<string | null>;
-};
+/** How long the agent must have been quiet before a transferred call is closed. */
+const HANDOVER_QUIET_MS = 3500;
 
-function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
+function Demo({ state, dispatch }: { state: State; dispatch: Dispatch<Action> }) {
   const { startSession, endSession, sendUserMessage, getInputVolume, getOutputVolume } = useConversationControls();
   const { status, message: statusMessage } = useConversationStatus();
   const { isSpeaking } = useConversationMode();
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantId, setTenantId] = useState<string | null>(null);
-  const [textMode, setTextMode] = useState(false);
   const [starting, setStarting] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
+  const { textMode } = state;
   const tenant = tenants.find(t => t.id === tenantId) ?? null;
   const live = status === "connected";
   const busy = live || starting || status === "connecting";
 
-  const tenantRef = useRef(tenant);
-  tenantRef.current = tenant;
-  const speaking = useRef(isSpeaking);
-  speaking.current = isSpeaking;
-  textModeRef.current = textMode;
+  const talking = textMode ? state.replying : isSpeaking;
 
   useEffect(() => {
     api.workflow().then(workflow => dispatch({ type: "workflow", workflow })).catch(() => {});
@@ -108,35 +81,31 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
   }, [tenantId, dispatch]);
 
   // A transfer ends the agent's part of the call: on a phone line the backend
-  // bridges the caller to the destination. Here the session is simply closed
-  // once the agent has finished announcing it.
-  const handOver = useCallback((label: string) => {
-    handedTo.current = label;
-    const started = Date.now();
-    const timer = setInterval(() => {
-      const waited = Date.now() - started;
-      if (waited > 3500 && (!speaking.current || waited > 14000)) {
-        clearInterval(timer);
-        endSession();
-      }
-    }, 300);
-  }, [endSession, handedTo]);
+  // bridges the caller to the destination. Here the session is closed once the
+  // agent has finished announcing it.
+  useEffect(() => {
+    if (!state.handedTo || !live || talking) return;
+    const timer = setTimeout(endSession, HANDOVER_QUIET_MS);
+    return () => clearTimeout(timer);
+  }, [state.handedTo, live, talking, endSession]);
 
   // Client tools: ElevenLabs sends the call to this page, the page forwards it
-  // to the backend, and the backend's answer goes back to the agent.
-  const run = useCallback(async (name: ToolName, params: Params): Promise<string> => {
-    const business = tenantRef.current!;
+  // to the backend, and the backend's answer goes back to the agent. The SDK
+  // always invokes the latest handler, so this can read the current business.
+  async function run(name: ToolName, params: Params): Promise<string> {
+    if (!tenant) return JSON.stringify({ error: "no business selected" });
     const call: ToolCall = { id: nextId(), name, params };
     const t0 = performance.now();
     dispatch({ type: "callStart", call });
     const finish = (result: string, ok: boolean) =>
       dispatch({ type: "callEnd", id: call.id, result, ok, ms: Math.round(performance.now() - t0) });
     try {
-      const { result, ok } = await api.tool(business.id, name, params);
+      const { result, ok } = await api.tool(tenant.id, name, params);
       const text = typeof result === "string" ? result : JSON.stringify(result);
       finish(text, ok);
       if (ok && name === "transfer_call") {
-        handOver(business.transfer_rules.find(r => r.destination === params.destination)?.label ?? params.destination);
+        const rule = tenant.transfer_rules.find(r => r.destination === params.destination);
+        dispatch({ type: "handover", to: rule?.label ?? params.destination });
       }
       return text;
     } catch (err) {
@@ -144,7 +113,7 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
       finish(text, false);
       return JSON.stringify({ error: text });
     }
-  }, [dispatch, handOver]);
+  }
 
   useConversationClientTool("take_message", p => run("take_message", p as Params));
   useConversationClientTool("transfer_call", p => run("transfer_call", p as Params));
@@ -156,7 +125,6 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
     if (!tenant) return;
     setProblem(null);
     setStarting(true);
-    handedTo.current = null;
     dispatch({ type: "reset" });
     if (window.matchMedia("(max-width: 1099px)").matches) {
       document.getElementById("call")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -185,19 +153,20 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
   const level = useCallback(() => {
     if (!live || textMode) return 0;
     try {
-      return speaking.current ? getOutputVolume() : getInputVolume();
+      return isSpeaking ? getOutputVolume() : getInputVolume();
     } catch {
-      return 0;
+      return 0; // the audio graph is not ready for the first few frames
     }
-  }, [live, textMode, getInputVolume, getOutputVolume]);
+  }, [live, textMode, isSpeaking, getInputVolume, getOutputVolume]);
 
-  const talking = textMode ? state.replying : isSpeaking;
   const orb: OrbState = live ? (talking ? "speaking" : "listening") : busy ? "connecting" : "idle";
   const error = problem ?? (status === "error" ? statusMessage ?? "Connection error" : null);
+  // During a call the line under the name is the workflow stage: on a phone the map is below the fold.
+  const stage = state.workflow?.nodes.find(n => n.id === state.node)?.label;
   const sub = error
     ? error
     : live
-      ? talking ? (textMode ? "Replying" : "Speaking") : textMode ? "Connected" : "Listening"
+      ? stage ?? "Connected"
       : busy
         ? "Connecting…"
         : state.feed.length
@@ -211,52 +180,39 @@ function Demo({ state, dispatch, textModeRef, handedTo }: DemoProps) {
       <header className="top">
         <div className="brand">
           <span className="brand-mark" />
-          Receptionist <em>demo</em>
+          <span>Receptionist</span>
+          <em>One agent, four businesses</em>
         </div>
+        <nav className="tenants" aria-label="Businesses">
+          {tenants.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              className="tenant"
+              style={{ "--th": t.hue } as CSSProperties}
+              aria-pressed={t.id === tenantId}
+              disabled={busy}
+              onClick={() => setTenantId(t.id)}
+            >
+              <span className="tenant-art">{t.emoji}</span>
+              <span className="tenant-text">
+                <strong>{t.business_name}</strong>
+                <span className={t.open ? "open yes" : "open"}>{t.open ? "open" : "closed"}</span>
+              </span>
+            </button>
+          ))}
+        </nav>
         <span className="pill" data-state={error ? "error" : live ? "live" : "idle"}>
           {error ? "Error" : live ? "On call" : busy ? "Connecting" : "Idle"}
         </span>
       </header>
-
-      <section className="intro">
-        <h1>One agent, four businesses</h1>
-        <p>
-          Pick a business and call it. The ElevenLabs agent, its prompt and its workflow are the same every time. Only the
-          dynamic variables the backend sends at the start of the call change.
-        </p>
-      </section>
-
-      <nav className="tenants" aria-label="Businesses">
-        {tenants.map(t => (
-          <button
-            key={t.id}
-            type="button"
-            className="tenant"
-            style={{ "--th": t.hue } as CSSProperties}
-            aria-pressed={t.id === tenantId}
-            disabled={busy}
-            onClick={() => setTenantId(t.id)}
-          >
-            <span className="tenant-art">{t.emoji}</span>
-            <span className="tenant-text">
-              <strong>{t.business_name}</strong>
-              <span className={t.open ? "open yes" : "open"}>{t.kind} · {t.open ? "open" : "closed"}</span>
-            </span>
-            <span className="caps">
-              <i className="on">Messages</i>
-              <i className={t.transfer_rules.length ? "on" : ""}>Transfers</i>
-              <i className={t.calendars.length ? "on" : ""}>Scheduling</i>
-            </span>
-          </button>
-        ))}
-      </nav>
 
       {tenant && (
         <main className="layout">
           <CallPanel
             tenant={tenant}
             textMode={textMode}
-            onMode={setTextMode}
+            onMode={text => dispatch({ type: "mode", text })}
             busy={busy}
             live={live}
             orb={orb}

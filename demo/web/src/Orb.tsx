@@ -9,7 +9,9 @@ export type OrbState = "idle" | "connecting" | "listening" | "speaking";
 export function Orb({ state, level }: { state: OrbState; level: () => number }) {
   const ref = useRef<HTMLDivElement>(null);
   const read = useRef(level);
-  read.current = level;
+  useEffect(() => {
+    read.current = level;
+  }, [level]);
 
   useEffect(() => {
     let frame = 0;

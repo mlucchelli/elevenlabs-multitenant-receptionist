@@ -1,0 +1,52 @@
+{
+    "id": "test_4wiisgrib1psol9p7rfkh5o8cvzx",
+    "type": "simulation",
+    "from_conversation_metadata": {
+        "conversation_id": "",
+        "agent_id": "agent_b02mlsj27d8tlz0zb5lqdmgmwfey",
+        "original_agent_reply": []
+    },
+    "dynamic_variables": {
+        "first_message": "Lakeside Legal, good afternoon. How may I direct your call?",
+        "business_name": "Lakeside Legal",
+        "global_context": "Lakeside Legal is a small law firm. Partners: M. Alvarez (family law), J. Okafor (real estate).",
+        "transfer_rules": "[{\"match\": \"existing clients of M. Alvarez with an open family-law case\", \"destination\": \"+15550177001\", \"announce\": \"Let me connect you with M. Alvarez's office.\"}, {\"match\": \"real estate matters\", \"destination\": \"+15550177002\", \"announce\": \"I'll put you through to J. Okafor's office.\"}]",
+        "transfer_enabled": "true",
+        "scheduling_enabled": "false",
+        "scheduling_calendars": "[]",
+        "current_datetime": "Wednesday, June 24 2026, 3:00 PM",
+        "phone_timezone": "America/Chicago",
+        "caller_number": "+15550122918",
+        "thread_id": "sim-thread-test",
+        "business_hours": "Monday: 8:30 AM to 6:00 PM; Tuesday: 8:30 AM to 6:00 PM; Wednesday: 8:30 AM to 6:00 PM; Thursday: 8:30 AM to 6:00 PM; Friday: 8:30 AM to 5:00 PM; Saturday: Closed; Sunday: Closed",
+        "within_business_hours": "true",
+        "display_enabled": "true",
+        "catalog": "[{\"id\": \"consultation\", \"name\": \"Initial consultation\", \"price\": \"$150\", \"description\": \"30 minutes with a partner, credited toward your first invoice\"}, {\"id\": \"contract_review\", \"name\": \"Contract review\", \"price\": \"from $400\", \"description\": \"Purchase and lease agreements, returned in three business days\"}]"
+    },
+    "chat_history": [
+        {
+            "role": "agent",
+            "message": "Lakeside Legal, good afternoon. How may I direct your call?",
+            "tool_calls": [],
+            "tool_results": [],
+            "time_in_call_secs": 0,
+            "interrupted": false,
+            "reasoning": [],
+            "used_static_kb_document_ids": [],
+            "analysis": null
+        }
+    ],
+    "success_conditions": [
+        "The agent calls the transfer_call tool with destination +15550177002, the real estate rule. Describing a service or quoting a price instead of transferring is a failure.",
+        "The agent does not call show_item: the caller asked for help with a matter, not for information about a product.",
+        "The agent announces the transfer before making it and does not read the phone number aloud."
+    ],
+    "simulation_scenario": "You are Sam Ortiz, on the Lakeside Legal website talking to its assistant. Say: 'I'm buying a house and need help with the contract.' You want to talk to someone at the firm now. If the agent offers to connect you, accept. If the agent instead describes a service or quotes a price, say 'I just want to talk to someone about it.' Give your name if asked. End the conversation once you are told you are being connected.",
+    "simulation_max_turns": 10,
+    "tool_mock_config": {
+        "mocking_strategy": "all",
+        "fallback_strategy": "raise_error",
+        "mocked_tool_ids": []
+    },
+    "name": "Display Enabled — A Request For Help Still Transfers"
+}

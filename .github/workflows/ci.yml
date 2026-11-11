@@ -38,9 +38,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Type-check and build the demo
+      - name: Demo backend tests
+        run: python3 demo/test_server.py
+      - name: Demo front end, lint, test, type-check and build
         working-directory: demo/web
-        run: npm ci && npm run build
+        run: npm ci && npm run lint && npm test && npm run build
 
   test-agent:
     needs: [discover, validate]

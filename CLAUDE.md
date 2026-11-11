@@ -32,11 +32,11 @@ fails until every id has a counterpart in every workspace the agent ships to. Nu
 
 ## The agent
 
-One config, `agents/receptionist/receptionist.json`: a shared base prompt plus a 5-node
-workflow — `start → Reception & Triage`, which routes to `Call Transfer` and
-`Schedule Appointment` nodes and to an `end` node. Each `override_agent` node carries
+One config, `agents/receptionist/receptionist.json`: a shared base prompt plus a 6-node
+workflow — `start → Reception & Triage`, which routes to `Call Transfer`,
+`Schedule Appointment` and `Products & Pricing` nodes and to an `end` node. Each `override_agent` node carries
 numbered SOP-style **procedures** in its `additional_prompt` and scopes its own tools via
-`additional_tool_ids` (the base prompt holds `take_message` and `show_item`). `end_call` is declared only on the triage node, so the transfer and scheduling stages cannot
+`additional_tool_ids` (the base prompt holds only `take_message`). `end_call` is declared only on the triage node, so the transfer and scheduling stages cannot
 hang up; their only way out is the `backward_condition` on the edge that brought the call in,
 which returns it to triage. Loops are always one edge with a forward and a backward
 condition, never two edges. Forward conditions out of triage are
@@ -163,8 +163,8 @@ syncs from the reference workspace.
 ## The demo
 
 `demo/` calls the agent from a browser. It implements the same five client tools the agent
-config declares, so a tool added to `tools/` needs three more things to work there: a branch
-in `run_tool` in `demo/server.py`, a `useConversationClientTool` line in `demo/web/src/App.tsx`,
+config declares, so a tool added to `tools/` needs three more things to work there: a handler
+registered in `TOOLS` in `demo/server.py`, a `useConversationClientTool` line in `demo/web/src/App.tsx`,
 and a case in `ToolEvent` in `demo/web/src/Call.tsx`. `server.py` sends `display_enabled = "true"`
 because the caller is on a web page; a phone backend sends `"false"`.
 
@@ -173,8 +173,10 @@ must include `agent_tool_request` and `agent_tool_response`, or the client never
 move between nodes. And a move is reported as `notify_condition_<N>_met`, N being the 1-based
 position of the edge in the current node's `edge_order`, so reordering `edge_order` changes what
 N means (the demo reads the order from the config, it is not hardcoded). The backward condition of
-an edge is condition 1 of the node it leads back from. After changing the front
-end run `npm run build` in `demo/web` (it type-checks first).
+an edge is condition 1 of the node it leads back from. After changing the demo
+run `python3 demo/test_server.py` and, in `demo/web`, `npm run lint && npm test && npm run build`
+(the build type-checks first). CI runs all four. The front end keeps call state in one reducer
+(`state.ts`); do not add refs that are written during render, the hooks lint rejects them.
 
 ## Repo structure
 

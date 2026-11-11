@@ -18,9 +18,9 @@ The same config is deployed to two ElevenLabs workspaces: a normal one and a zer
 
 ## Demo
 
-`demo/` is a web app that calls the agent from the browser, by voice or by text. You pick one of four made-up businesses and talk to its receptionist. The page shows the conversation and every tool call with its arguments and timing. What each call leaves behind appears only when it happens: the message in the inbox, the booked slot in the calendar, the transfer ringing, the product the caller asked about.
+`demo/` is a web app that calls the agent from the browser, by voice or by text. You pick one of four made-up businesses and talk to its receptionist. The page shows the conversation and every tool call with its arguments and timing. On a laptop everything fits in one window, so nothing happens off screen. What each call leaves behind appears only when it happens: the message in the inbox, the booked slot in the calendar, the transfer ringing, the product the caller asked about.
 
-The workflow is drawn from the agent config in this repo, with the node positions saved by the ElevenLabs editor, and it follows the call live. ElevenLabs reports each move between nodes to the client as a tool event named `notify_condition_<N>_met`, where N is the position of the edge in the current node's `edge_order`. The page turns that back into "Reception & Triage → Schedule Appointment" and shows the condition that fired. Stages a business has switched off are dashed.
+The workflow is drawn from the agent config in this repo and follows the call live. ElevenLabs reports each move between nodes to the client as a tool event named `notify_condition_<N>_met`, where N is the position of the edge in the current node's `edge_order`. The page turns that back into "Reception & Triage → Schedule Appointment" and shows the condition that fired. Stages a business has switched off are dashed.
 
 ![The demo during a call](docs/demo-desktop.png)
 
@@ -82,7 +82,7 @@ Each call starts with something like this:
 }
 ```
 
-`transfer_enabled` and `scheduling_enabled` switch whole features on and off per business. `display_enabled` is for callers who are on the business's website instead of the phone: when it is true the agent can call `show_item` to put a catalog item on their screen. On a phone call it is false and the agent never mentions a screen. `current_datetime` is always sent by the backend. The agent never reads the real clock, otherwise a test about "tomorrow" passes or fails depending on the day CI runs.
+`transfer_enabled` and `scheduling_enabled` switch whole features on and off per business. `display_enabled` is for callers who are on the business's website instead of the phone: when it is true a question about a product opens a workflow stage where the agent calls `show_item` to put that item on their screen. On a phone call it is false and the agent never mentions a screen. `current_datetime` is always sent by the backend. The agent never reads the real clock, otherwise a test about "tomorrow" passes or fails depending on the day CI runs.
 
 The backend can also override the LLM and the TTS model per call (`platform_settings.overrides`). That is how I roll a new model out to a percentage of customers without redeploying the agent. The defaults in the config are `claude-haiku-5-5` and `eleven_v4_turbo`.
 
@@ -91,13 +91,14 @@ The backend can also override the LLM and the TTS model per call (`platform_sett
 ```
 start → Reception & Triage ─┬→ Call Transfer ────────┐
               ↑             ├→ Schedule Appointment ─┤
+              │             ├→ Products & Pricing ───┤
               └─────────────┴────────────────────────┘
                             └→ end
 ```
 
 The base prompt holds what is true in every stage: how to talk on the phone, what the agent knows about the business, how to take a message. Each workflow node adds its own step-by-step procedures (`additional_prompt`) and its own tools (`additional_tool_ids`), so the booking tools only exist inside the scheduling node.
 
-The edges out of triage check two things: the feature flag for that business (`scheduling_enabled == "true"`) and an LLM condition about what the caller wants. If scheduling is off for a business, the agent cannot reach the booking node no matter what the caller says. The same edge carries a backward condition that sends the call back to triage when the booking or the transfer is over. Only triage can end the call.
+The edges out of triage check two things: the feature flag for that business (`scheduling_enabled == "true"`) and an LLM condition about what the caller wants. If scheduling is off for a business, the agent cannot reach the booking node no matter what the caller says. Products & Pricing is gated by `display_enabled` the same way, so it only opens for callers on a web page. The same edge carries a backward condition that sends the call back to triage when the booking or the transfer is over. Only triage can end the call.
 
 ### CI on every PR
 
@@ -127,7 +128,7 @@ HIPAA is deployed first. If it fails, production has not been touched yet.
 
 ### Flaky tests
 
-The simulation tests are an LLM playing the caller and another LLM judging the transcript, so they fail randomly some of the time. On the production suite (23 tests) I measured about 10% of tests failing on a first run with nothing actually broken. With a rule like "retry once" that made roughly one build in five red for no reason, and people stopped reading the check. Those numbers are from that suite, not from the 6 tests in this repo.
+The simulation tests are an LLM playing the caller and another LLM judging the transcript, so they fail randomly some of the time. On the production suite (23 tests) I measured about 10% of tests failing on a first run with nothing actually broken. With a rule like "retry once" that made roughly one build in five red for no reason, and people stopped reading the check. Those numbers are from that suite, not from the 7 tests in this repo.
 
 What the pipeline does now:
 
@@ -178,13 +179,15 @@ ci/
 └── tests/test_translate.py      — Unit tests for the id translation
 demo/
 ├── server.py                    — Demo backend: dynamic variables, signed URL, client tools
+├── test_server.py               — Tests for the backend
 ├── tenants.json                 — The four made-up businesses
 └── web/src/
     ├── App.tsx                  — Session start, client tools, layout
     ├── Call.tsx                 — Orb, conversation, tool calls drawn inline
     ├── Workspace.tsx            — Inbox, calendar, transfers, catalog, tool call log
     ├── WorkflowMap.tsx          — The workflow graph, following the call live
-    └── state.ts                 — Reducer: conversation, tool calls, workflow moves
+    ├── state.ts                 — Reducer: conversation, tool calls, workflow moves
+    └── state.test.ts            — Tests for the reducer
 .github/workflows/
 ├── ci.yml                       — On PR: validate, push to a branch, run the tests
 ├── deploy.yml                   — On merge: deploy each workspace in order
@@ -219,6 +222,8 @@ Then update `workspaces.json` with the same ids. If you only have one workspace,
 python3 ci/tests/test_translate.py
 python3 ci/lint_ids.py --workspace standard
 python3 ci/assert_node_models.py
+python3 demo/test_server.py
+(cd demo/web && npm install && npm run lint && npm test)
 ```
 
 ### 4. Run the pipeline

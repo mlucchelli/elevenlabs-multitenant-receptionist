@@ -22,32 +22,35 @@ const CARD_OF: Record<ToolCall["name"], CardId> = {
 export function Workspace({ tenant, calls, workflow, node, steps, vars, varsSent }: Props) {
   const done = calls.filter(c => c.ok);
   const used = [...new Set(done.map(c => CARD_OF[c.name]))];
-  const cards: Record<CardId, (wide: boolean) => ReactNode> = {
-    screen: wide => <ScreenCard key="screen" wide={wide} tenant={tenant} shown={done.filter(c => c.name === "show_item").map(c => c.params.item_id)} />,
-    inbox: wide => <InboxCard key="inbox" wide={wide} messages={done.filter(c => c.name === "take_message")} />,
-    calendar: wide => <CalendarCard key="calendar" wide={wide} tenant={tenant} calls={done} />,
-    transfer: wide => <TransferCard key="transfer" wide={wide} tenant={tenant} transfer={done.findLast(c => c.name === "transfer_call")!} />,
+  const cards: Record<CardId, () => ReactNode> = {
+    screen: () => <ScreenCard key="screen" tenant={tenant} shown={done.filter(c => c.name === "show_item").map(c => c.params.item_id)} />,
+    inbox: () => <InboxCard key="inbox" messages={done.filter(c => c.name === "take_message")} />,
+    calendar: () => <CalendarCard key="calendar" tenant={tenant} calls={done} />,
+    transfer: () => <TransferCard key="transfer" tenant={tenant} transfer={done.findLast(c => c.name === "transfer_call")!} />,
   };
   return (
     <section className="work" aria-label="What the call did">
       {workflow && <WorkflowMap workflow={workflow} node={node} steps={steps} vars={vars} />}
-      {/* With an odd number of cards the first one takes the full row, so the grid never has a hole. */}
-      {used.map((id, i) => cards[id](used.length % 2 === 1 && i === 0))}
-      {used.length === 0 && (
-        <div className="waiting">
-          <span><Icon name="bolt" size={18} /></span>
-          <p>Nothing has happened yet. Each thing the agent does shows up here when it does it.</p>
-        </div>
-      )}
-      {calls.length > 0 && <ActivityCard calls={calls} />}
-      <VarsCard vars={vars} sent={varsSent} />
+      <div className="cards" data-count={used.length}>
+        {used.map(id => cards[id]())}
+        {used.length === 0 && (
+          <div className="waiting">
+            <span><Icon name="bolt" size={18} /></span>
+            <p>Nothing has happened yet. A message, a booking, a transfer or a product appears here when the agent does it.</p>
+          </div>
+        )}
+      </div>
+      <aside className="side">
+        <ActivityCard calls={calls} />
+        <VarsCard vars={vars} sent={varsSent} />
+      </aside>
     </section>
   );
 }
 
-function Card(p: { id: string; icon: IconName; title: string; tool?: string; wide?: boolean; fresh?: number; children: ReactNode }) {
+function Card(p: { icon: IconName; title: string; tool?: string; fresh?: number; children: ReactNode }) {
   return (
-    <article className={`card tile appear${p.wide ? " wide" : ""}`} id={p.id}>
+    <article className="card tile">
       <header>
         <span className="tile-icon"><Icon name={p.icon} size={16} /></span>
         <h3>{p.title}</h3>
@@ -61,12 +64,12 @@ function Card(p: { id: string; icon: IconName; title: string; tool?: string; wid
   );
 }
 
-function ScreenCard({ tenant, shown, wide }: { tenant: Tenant; shown: string[]; wide: boolean }) {
+function ScreenCard({ tenant, shown }: { tenant: Tenant; shown: string[] }) {
   const spot = shown.at(-1);
   // Newest first; an item the agent showed twice appears once.
   const items = [...new Set(shown.toReversed())].map(id => tenant.catalog.find(i => i.id === id)).filter(i => i !== undefined);
   return (
-    <Card id="card-screen" icon="screen" title="On the caller's screen" tool="show_item" wide={wide} fresh={shown.length}>
+    <Card icon="screen" title="On screen" tool="show_item" fresh={shown.length}>
       <div className="catalog">
         {items.map(item => (
           <div key={item.id} className={item.id === spot ? "product spot" : "product"}>
@@ -83,9 +86,9 @@ function ScreenCard({ tenant, shown, wide }: { tenant: Tenant; shown: string[]; 
   );
 }
 
-function InboxCard({ messages, wide }: { messages: ToolCall[]; wide: boolean }) {
+function InboxCard({ messages }: { messages: ToolCall[] }) {
   return (
-    <Card id="card-inbox" icon="inbox" title="Inbox" tool="take_message" wide={wide} fresh={messages.length}>
+    <Card icon="inbox" title="Inbox" tool="take_message" fresh={messages.length}>
       {messages.toReversed().map(m => (
         <div key={m.id} className="note">
           <span className="avatar">{m.params.caller_name?.[0] ?? "?"}</span>
@@ -101,7 +104,7 @@ function InboxCard({ messages, wide }: { messages: ToolCall[]; wide: boolean }) 
   );
 }
 
-function CalendarCard({ tenant, calls, wide }: { tenant: Tenant; calls: ToolCall[]; wide: boolean }) {
+function CalendarCard({ tenant, calls }: { tenant: Tenant; calls: ToolCall[] }) {
   const bookings = calls.filter(c => c.name === "book_appointment");
   const check = calls.findLast(c => c.name === "check_availability");
   const date = bookings.at(-1)?.params.date ?? check?.params.preferred_date;
@@ -113,7 +116,7 @@ function CalendarCard({ tenant, calls, wide }: { tenant: Tenant; calls: ToolCall
   const rows = [...new Set([...free, ...booked.keys()])].sort();
 
   return (
-    <Card id="card-calendar" icon="calendar" title="Calendar" tool={bookings.length ? "book_appointment" : "check_availability"} wide={wide} fresh={bookings.length + (check ? 1 : 0)}>
+    <Card icon="calendar" title="Calendar" tool={bookings.length ? "book_appointment" : "check_availability"} fresh={bookings.length + (check ? 1 : 0)}>
       <p className="cal-head">
         <strong>{calendar.name}</strong>
         <span>{date ? day(date) : calendar.description}</span>
@@ -135,9 +138,9 @@ function CalendarCard({ tenant, calls, wide }: { tenant: Tenant; calls: ToolCall
   );
 }
 
-function TransferCard({ tenant, transfer, wide }: { tenant: Tenant; transfer: ToolCall; wide: boolean }) {
+function TransferCard({ tenant, transfer }: { tenant: Tenant; transfer: ToolCall }) {
   return (
-    <Card id="card-transfer" icon="route" title="Transfer" tool="transfer_call" wide={wide} fresh={1}>
+    <Card icon="route" title="Transfer" tool="transfer_call" fresh={1}>
       <div className="routes">
         {tenant.transfer_rules.map(rule => {
           const active = transfer.params.destination === rule.destination;
@@ -159,7 +162,8 @@ function TransferCard({ tenant, transfer, wide }: { tenant: Tenant; transfer: To
 
 function ActivityCard({ calls }: { calls: ToolCall[] }) {
   return (
-    <Card id="card-activity" icon="bolt" title="Tool calls" wide>
+    <Card icon="bolt" title="Tool calls">
+      {calls.length === 0 && <p className="empty">Each call the agent makes is listed here with its arguments and what the backend answered.</p>}
       <div className="log">
         {calls.toReversed().map(c => (
           <div key={c.id} className={c.ok === false ? "call-row bad" : "call-row"}>
@@ -185,28 +189,20 @@ function ActivityCard({ calls }: { calls: ToolCall[] }) {
 
 function VarsCard({ vars, sent }: { vars: Vars | null; sent: boolean }) {
   return (
-    <article className="card tile wide" id="card-vars">
-      <details>
-        <summary>
-          <span className="tile-icon"><Icon name="braces" size={16} /></span>
-          <h3>Dynamic variables</h3>
-          <span className="sum-note">{sent ? "sent when this call started" : "what the backend would send now"}</span>
-          <Icon name="down" size={16} />
-        </summary>
-        <dl className="vars">
-          {Object.entries(vars ?? {}).map(([k, v]) => {
-            const json = /^[[{]/.test(v) ? parse<unknown>(v) : null;
-            return (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd className={v === "true" || v === "false" ? `flag ${v}` : undefined}>
-                  {json ? JSON.stringify(json, null, 2) : v === "" ? '""' : v}
-                </dd>
-              </div>
-            );
-          })}
-        </dl>
-      </details>
-    </article>
+    <Card icon="braces" title="Dynamic variables" tool={sent ? "sent" : "preview"}>
+      <dl className="vars">
+        {Object.entries(vars ?? {}).map(([k, v]) => {
+          const json = /^[[{]/.test(v) ? parse<unknown>(v) : null;
+          return (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd className={v === "true" || v === "false" ? `flag ${v}` : undefined}>
+                {json ? JSON.stringify(json, null, 2) : v === "" ? '""' : v}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </Card>
   );
 }
